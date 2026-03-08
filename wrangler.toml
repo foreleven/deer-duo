@@ -1,0 +1,17 @@
+name = "deer-duo"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+html_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deer-duo"
+database_id = "placeholder-replace-with-real-id"
+
+[vars]
+JWT_SECRET = "change-me-in-production"
