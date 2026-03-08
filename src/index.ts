@@ -19,16 +19,55 @@ function getJwtSecret(env: Bindings): string {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.use("/api/*", cors());
+app.use(
+  "/api/*",
+  cors({
+    origin: ["https://duo.process.tech"],
+    credentials: true,
+  }),
+);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-async function hashPassword(password: string): Promise<string> {
+const PBKDF2_ITERATIONS = 100_000;
+const PBKDF2_KEY_LENGTH_BITS = 256;
+
+async function deriveKey(password: string, saltHex: string): Promise<string> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  const saltBytes = hexToBytes(saltHex);
+  const salt = saltBytes.buffer as ArrayBuffer;
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: PBKDF2_ITERATIONS,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    PBKDF2_KEY_LENGTH_BITS,
+  );
+  return bytesToHex(new Uint8Array(derivedBits));
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return arr;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 // ── API Routes ────────────────────────────────────────────────────────────────
@@ -38,32 +77,41 @@ async function hashPassword(password: string): Promise<string> {
  * Body: { username: string, password: string }
  */
 app.post("/api/login", async (c) => {
-  const { username, password } = await c.req.json<{
-    username: string;
-    password: string;
-  }>();
+  // Fail fast: ensure JWT secret is configured before doing any work
+  const secret = getJwtSecret(c.env);
+
+  let body: { username: string; password: string };
+  try {
+    body = await c.req.json<{ username: string; password: string }>();
+  } catch {
+    return c.json({ error: "请求体不是有效的 JSON" }, 400);
+  }
+
+  const { username, password } = body;
 
   if (!username || !password) {
     return c.json({ error: "用户名和密码不能为空" }, 400);
   }
 
-  const hash = await hashPassword(password);
-
-  const user = await c.env.DB.prepare(
-    "SELECT id, username, role FROM users WHERE username = ? AND password_hash = ?"
+  const row = await c.env.DB.prepare(
+    "SELECT id, username, password_hash, salt, role FROM users WHERE username = ?",
   )
-    .bind(username, hash)
-    .first<{ id: number; username: string; role: string }>();
+    .bind(username)
+    .first<{ id: number; username: string; password_hash: string; salt: string; role: string }>();
 
-  if (!user) {
+  if (!row) {
     return c.json({ error: "用户名或密码错误" }, 401);
   }
 
-  const secret = getJwtSecret(c.env);
+  const hash = await deriveKey(password, row.salt);
+  if (hash !== row.password_hash) {
+    return c.json({ error: "用户名或密码错误" }, 401);
+  }
+
   const payload = {
-    sub: String(user.id),
-    username: user.username,
-    role: user.role,
+    sub: String(row.id),
+    username: row.username,
+    role: row.role,
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
   };
 
@@ -77,7 +125,7 @@ app.post("/api/login", async (c) => {
     path: "/",
   });
 
-  return c.json({ user: { id: user.id, username: user.username, role: user.role } });
+  return c.json({ user: { id: row.id, username: row.username, role: row.role } });
 });
 
 /**
@@ -92,7 +140,7 @@ app.get("/api/me", async (c) => {
 
   const secret = getJwtSecret(c.env);
   try {
-    const payload = await verify(token, secret, "HS256") as {
+    const payload = (await verify(token, secret, "HS256")) as {
       sub: string;
       username: string;
       role: string;
@@ -107,7 +155,12 @@ app.get("/api/me", async (c) => {
  * POST /api/logout
  */
 app.post("/api/logout", (c) => {
-  deleteCookie(c, "token", { path: "/" });
+  deleteCookie(c, "token", {
+    path: "/",
+    httpOnly: true,
+    secure: true,
+    sameSite: "Lax",
+  });
   return c.json({ ok: true });
 });
 

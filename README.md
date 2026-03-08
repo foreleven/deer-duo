@@ -77,12 +77,11 @@ npm run deploy
 
 ## 管理员账号
 
-| 字段 | 值 |
+| 字段 | 说明 |
 |------|----|
-| 用户名 | `admin` |
-| 密码 | `admin123` |
+| 用户名 | 默认管理员用户名为 `admin`（可在数据库中修改） |
 
-> ⚠️ **生产环境请务必通过 D1 控制台修改管理员密码哈希值。**
+> ⚠️ 默认管理员密码仅用于本地开发环境。生产环境请通过 D1 控制台或迁移脚本重新生成 PBKDF2 密码哈希并更新 `password_hash` 和 `salt` 字段，具体参考 `migrations/0001_create_users.sql` 中的注释。
 
 ## CI/CD 配置
 
@@ -141,5 +140,5 @@ deer-duo/
 ```bash
 curl -X POST https://duo.process.tech/api/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"admin","password":"<your-password>"}'
 ```

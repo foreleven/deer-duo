@@ -1,8 +1,4 @@
-type User = {
-  id: string | number;
-  username: string;
-  role: string;
-};
+import type { User } from "../types";
 
 interface DashboardProps {
   user: User;
@@ -11,8 +7,16 @@ interface DashboardProps {
 
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   const handleLogout = async () => {
-    await fetch("/api/logout", { method: "POST" });
-    onLogout();
+    try {
+      const response = await fetch("/api/logout", { method: "POST" });
+      if (!response.ok) {
+        console.error("Logout request failed with status:", response.status);
+      }
+    } catch (error) {
+      console.error("Logout request encountered an error:", error);
+    } finally {
+      onLogout();
+    }
   };
 
   return (

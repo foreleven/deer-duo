@@ -1,10 +1,5 @@
 import { useState, FormEvent } from "react";
-
-type User = {
-  id: string | number;
-  username: string;
-  role: string;
-};
+import type { User } from "../types";
 
 interface LoginProps {
   onLogin: (user: User) => void;

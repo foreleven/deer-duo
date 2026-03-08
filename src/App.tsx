@@ -1,12 +1,7 @@
 import { useState, useEffect } from "react";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-
-type User = {
-  id: string | number;
-  username: string;
-  role: string;
-};
+import type { User } from "./types";
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
