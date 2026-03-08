@@ -172,15 +172,29 @@ app.get("*", async (c) => {
     return c.notFound();
   }
   const response = await c.env.ASSETS.fetch(c.req.raw);
+
   if (response.status === 404) {
-    // SPA fallback: serve index.html so client-side routing can handle the path
-    const indexResponse = await c.env.ASSETS.fetch(
-      new Request(new URL("/index.html", c.req.url)),
-    );
-    if (!indexResponse.ok) {
-      return c.text("Not Found", 404);
+    // Only apply SPA fallback for HTML navigation requests without a file extension.
+    const accept = c.req.header("Accept") ?? "";
+    const isHtmlRequest = accept.includes("text/html");
+
+    const url = new URL(c.req.url);
+    const lastSegment = url.pathname.split("/").pop() ?? "";
+    const hasExtension = lastSegment.includes(".");
+
+    if (isHtmlRequest && !hasExtension) {
+      // SPA fallback: serve index.html so client-side routing can handle the path
+      const indexResponse = await c.env.ASSETS.fetch(
+        new Request(new URL("/index.html", c.req.url)),
+      );
+      if (!indexResponse.ok) {
+        return c.text("Not Found", 404);
+      }
+      return indexResponse;
     }
-    return indexResponse;
+
+    // For non-HTML or asset-like requests, return the original 404 response.
+    return response;
   }
   return response;
 });
