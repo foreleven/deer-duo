@@ -170,7 +170,13 @@ app.get("*", async (c) => {
   const response = await c.env.ASSETS.fetch(c.req.raw);
   if (response.status === 404) {
     // SPA fallback: serve index.html so client-side routing can handle the path
-    return c.env.ASSETS.fetch(new Request(new URL("/index.html", c.req.url).toString()));
+    const indexResponse = await c.env.ASSETS.fetch(
+      new Request(new URL("/index.html", c.req.url)),
+    );
+    if (!indexResponse.ok) {
+      return c.text("Not Found", 404);
+    }
+    return indexResponse;
   }
   return response;
 });
