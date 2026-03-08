@@ -167,6 +167,10 @@ app.post("/api/logout", (c) => {
 // ── Fallback: serve static SPA assets ────────────────────────────────────────
 
 app.get("*", async (c) => {
+  // For unknown /api/* routes, return a proper 404 instead of SPA HTML
+  if (c.req.path.startsWith("/api/")) {
+    return c.notFound();
+  }
   const response = await c.env.ASSETS.fetch(c.req.raw);
   if (response.status === 404) {
     // SPA fallback: serve index.html so client-side routing can handle the path
