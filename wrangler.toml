@@ -11,8 +11,7 @@ html_handling = "none"
 [[d1_databases]]
 binding = "DB"
 database_name = "deer-duo"
-# Replace with your actual D1 database_id from: npx wrangler d1 create deer-duo
-database_id = "placeholder-replace-with-real-id"
+database_id = "dceba6c0-8eb1-4640-ab6c-66d179129e43"
 
 # JWT_SECRET must be set as a Wrangler secret (never commit real secrets):
 #   npx wrangler secret put JWT_SECRET
