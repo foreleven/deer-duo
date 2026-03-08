@@ -1,0 +1,19 @@
+name = "deer-duo"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./dist/client"
+binding = "ASSETS"
+html_handling = "none"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deer-duo"
+# Replace with your actual D1 database_id from: npx wrangler d1 create deer-duo
+database_id = "placeholder-replace-with-real-id"
+
+# JWT_SECRET must be set as a Wrangler secret (never commit real secrets):
+#   npx wrangler secret put JWT_SECRET
+# [vars] section intentionally has no JWT_SECRET for production use.
