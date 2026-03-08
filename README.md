@@ -68,6 +68,10 @@ npm run build
 ### 部署
 
 ```bash
+# 首先设置 JWT 密钥（必须，不要提交到代码库）
+npx wrangler secret put JWT_SECRET
+
+# 然后构建并部署
 npm run deploy
 ```
 

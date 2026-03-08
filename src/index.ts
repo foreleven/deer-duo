@@ -6,8 +6,16 @@ import { sign, verify } from "hono/jwt";
 type Bindings = {
   DB: D1Database;
   ASSETS: Fetcher;
-  JWT_SECRET: string;
+  JWT_SECRET: string | undefined;
 };
+
+function getJwtSecret(env: Bindings): string {
+  const secret = env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("JWT_SECRET is not configured. Run: npx wrangler secret put JWT_SECRET");
+  }
+  return secret;
+}
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -51,7 +59,7 @@ app.post("/api/login", async (c) => {
     return c.json({ error: "用户名或密码错误" }, 401);
   }
 
-  const secret = c.env.JWT_SECRET ?? "change-me-in-production";
+  const secret = getJwtSecret(c.env);
   const payload = {
     sub: String(user.id),
     username: user.username,
@@ -82,7 +90,7 @@ app.get("/api/me", async (c) => {
     return c.json({ error: "未登录" }, 401);
   }
 
-  const secret = c.env.JWT_SECRET ?? "change-me-in-production";
+  const secret = getJwtSecret(c.env);
   try {
     const payload = await verify(token, secret, "HS256") as {
       sub: string;

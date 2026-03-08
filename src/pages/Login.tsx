@@ -28,7 +28,7 @@ export default function Login({ onLogin }: LoginProps) {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await res.json<{ user?: User; error?: string }>();
+      const data = (await res.json()) as { user?: User; error?: string };
 
       if (!res.ok) {
         setError(data.error ?? "登录失败");
