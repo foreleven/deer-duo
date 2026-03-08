@@ -11,7 +11,7 @@
 | 样式 | [Tailwind CSS v4](https://tailwindcss.com/) |
 | 数据库 | [Cloudflare D1](https://developers.cloudflare.com/d1/) (SQLite) |
 | 认证 | JWT（httpOnly Cookie） |
-| 部署 | [Cloudflare Pages](https://pages.cloudflare.com/) + Workers |
+| 部署 | [Cloudflare Workers](https://workers.cloudflare.com/) |
 
 ## 功能
 
@@ -19,7 +19,7 @@
 - ✅ D1 数据库绑定（`deer-duo`），包含用户表
 - ✅ 用户登录（JWT Cookie 认证）
 - ✅ 内置 `admin` 管理员账号（无需注册）
-- ✅ GitHub Actions CI/CD 自动部署到 Cloudflare Pages
+- ✅ GitHub Actions CI/CD：PR 自动 preview 部署，`main` 分支自动部署到 Cloudflare Workers
 - ✅ 自定义域名：https://duo.process.tech
 
 ## 本地开发
@@ -48,8 +48,6 @@ npx wrangler d1 execute deer-duo --local --file=./migrations/0001_create_users.s
 # 执行迁移（生产环境）
 npx wrangler d1 execute deer-duo --remote --file=./migrations/0001_create_users.sql
 ```
-
-将 `wrangler.toml` 中的 `database_id` 替换为实际的 D1 数据库 ID。
 
 ### 启动开发服务器
 
@@ -89,10 +87,10 @@ npm run deploy
 
 | Secret | 说明 |
 |--------|------|
-| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（需有 Workers 和 Pages 权限） |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare API Token（需有 Workers 权限） |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare 账号 ID |
 
-每次推送到 `main` 分支时，GitHub Actions 会自动构建并部署到 Cloudflare。
+每次推送到 `main` 分支时，GitHub Actions 会自动构建并部署到 Cloudflare Workers。Pull Request 会自动触发 `wrangler versions upload` 生成 preview 版本用于验证。
 
 ## 自定义域名
 
