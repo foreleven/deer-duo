@@ -123,7 +123,7 @@ export default function CourseManagement() {
       {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ── Left Panel: Course List ── */}
-        <aside className={`flex flex-col border-r border-gray-100 bg-gray-50/60 overflow-hidden md:w-72 md:shrink-0 md:flex ${showMobileDetail ? "hidden" : "flex-1"}`}>
+        <aside className={`flex flex-col border-r border-gray-100 bg-gray-50/60 overflow-hidden md:w-72 md:shrink-0 md:flex ${showMobileDetail ? "hidden" : "flex-1 md:flex-none"}`}>
           {/* Subject selector */}
           <div className="flex gap-1 px-3 pt-3 pb-2 shrink-0 flex-wrap">
             {subjects.map((s) => (
