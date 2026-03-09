@@ -47,10 +47,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: versions upload
-          secrets: |
-            JWT_SECRET
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Smoke test preview
         if: github.event_name == 'pull_request'
@@ -75,6 +71,14 @@ jobs:
 
           echo "All smoke tests passed ✓"
 
+      - name: Set JWT_SECRET (production)
+        if: github.event_name == 'push'
+        run: echo "${JWT_SECRET}" | npx wrangler secret put JWT_SECRET
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+
       - name: Deploy to Production (main)
         if: github.event_name == 'push'
         uses: cloudflare/wrangler-action@v3
@@ -82,7 +86,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
-          secrets: |
-            JWT_SECRET
-        env:
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
