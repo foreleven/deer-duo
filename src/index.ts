@@ -298,7 +298,7 @@ app.get("/api/chapters/:chapterId/lessons", async (c) => {
   const user = await requireLogin(c);
   if (!user) return c.json({ error: "未登录" }, 401);
 
-  const statusFilter = user.role === "admin" ? "" : "AND l.status = 'active'";
+  const statusFilter = user.role === "admin" ? "" : "AND status = 'active'";
   const { results } = await c.env.DB.prepare(
     `SELECT id, chapter_id, title, content, tags, sort_order, status, created_at, updated_at
      FROM lessons WHERE chapter_id = ? ${statusFilter} ORDER BY sort_order ASC, id ASC`,
@@ -351,7 +351,13 @@ app.post("/api/chapters/:chapterId/lessons", async (c) => {
     .bind(c.req.param("chapterId"), title.trim(), content, tags, sort_order, status, user.sub)
     .run();
 
-  return c.json({ lesson: { id: result.meta.last_row_id, title, status } }, 201);
+  const lesson = await c.env.DB.prepare(
+    "SELECT id, chapter_id, title, content, tags, sort_order, status, created_at, updated_at FROM lessons WHERE id = ?",
+  )
+    .bind(result.meta.last_row_id)
+    .first();
+
+  return c.json({ lesson }, 201);
 });
 
 /**
@@ -362,35 +368,37 @@ app.put("/api/lessons/:id", async (c) => {
   if (!user) return c.json({ error: "未登录" }, 401);
   if (user.role !== "admin") return c.json({ error: "权限不足" }, 403);
 
-  let body: { title?: string; content?: string; tags?: string; sort_order?: number; status?: string };
+  // Use Record<string, unknown> so we can distinguish "key absent" from "key present with null value"
+  let body: Record<string, unknown>;
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: "无效的请求体" }, 400);
   }
 
-  const { title, content, tags, sort_order, status } = body;
-  if (title !== undefined && !title.trim()) return c.json({ error: "课时标题不能为空" }, 400);
+  const title = "title" in body ? (body.title as string | null) : undefined;
+  const content = "content" in body ? (body.content as string | null) : undefined;
+  const tags = "tags" in body ? (body.tags as string | null) : undefined;
+  const sort_order = "sort_order" in body ? (body.sort_order as number | null) : undefined;
+  const status = "status" in body ? (body.status as string | null) : undefined;
+
+  if (title !== undefined && !title?.trim()) return c.json({ error: "课时标题不能为空" }, 400);
+
+  // Build SET clauses dynamically so NULL can explicitly clear a field
+  const setClauses: string[] = ["updated_at = CURRENT_TIMESTAMP"];
+  const bindings: unknown[] = [];
+
+  if (title !== undefined) { setClauses.push("title = ?"); bindings.push(title?.trim() ?? null); }
+  if (content !== undefined) { setClauses.push("content = ?"); bindings.push(content); }
+  if (tags !== undefined) { setClauses.push("tags = ?"); bindings.push(tags); }
+  if (sort_order !== undefined) { setClauses.push("sort_order = ?"); bindings.push(sort_order); }
+  if (status !== undefined) { setClauses.push("status = ?"); bindings.push(status); }
+  bindings.push(c.req.param("id"));
 
   await c.env.DB.prepare(
-    `UPDATE lessons SET
-      title = COALESCE(?, title),
-      -- CASE WHEN pattern is needed because SQLite COALESCE cannot distinguish NULL (no update) from intentional NULL clear
-      content = CASE WHEN ? IS NOT NULL THEN ? ELSE content END,
-      tags = CASE WHEN ? IS NOT NULL THEN ? ELSE tags END,
-      sort_order = COALESCE(?, sort_order),
-      status = COALESCE(?, status),
-      updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
+    `UPDATE lessons SET ${setClauses.join(", ")} WHERE id = ?`,
   )
-    .bind(
-      title?.trim() ?? null,
-      content ?? null, content ?? null,
-      tags ?? null, tags ?? null,
-      sort_order ?? null,
-      status ?? null,
-      c.req.param("id"),
-    )
+    .bind(...bindings)
     .run();
 
   const updated = await c.env.DB.prepare(
@@ -480,8 +488,13 @@ app.post("/api/study-records", async (c) => {
       .bind(user.sub, lesson_id, study_date)
       .run();
     return c.json({ record: { id: result.meta.last_row_id, lesson_id, study_date } }, 201);
-  } catch {
-    return c.json({ error: "该课时今日已绑定" }, 409);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("UNIQUE constraint failed") || msg.includes("SQLITE_CONSTRAINT")) {
+      return c.json({ error: "该课时今日已绑定" }, 409);
+    }
+    console.error("Failed to insert study record:", err);
+    return c.json({ error: "数据库错误" }, 500);
   }
 });
 
@@ -585,28 +598,41 @@ app.patch("/api/tasks/:id", async (c) => {
   }
 
   const { status, note } = body;
-  const markDone = status === "done";
 
   // note uses CASE WHEN because COALESCE cannot distinguish "omitted" from "intentionally cleared"
-  if (markDone) {
+  // completed_at is only updated when status is explicitly provided in the request body
+  const statusProvided = "status" in body;
+  const markDone = status === "done";
+  const markPending = statusProvided && status !== "done";
+
+  if (statusProvided && markDone) {
     await c.env.DB.prepare(
       `UPDATE tasks SET
-        status = COALESCE(?, status),
+        status = ?,
         note = CASE WHEN ? IS NOT NULL THEN ? ELSE note END,
         completed_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
-      .bind(status ?? null, note ?? null, note ?? null, c.req.param("id"))
+      .bind(status, note ?? null, note ?? null, c.req.param("id"))
       .run();
-  } else {
+  } else if (markPending) {
     await c.env.DB.prepare(
       `UPDATE tasks SET
-        status = COALESCE(?, status),
+        status = ?,
         note = CASE WHEN ? IS NOT NULL THEN ? ELSE note END,
         completed_at = NULL
        WHERE id = ?`,
     )
-      .bind(status ?? null, note ?? null, note ?? null, c.req.param("id"))
+      .bind(status, note ?? null, note ?? null, c.req.param("id"))
+      .run();
+  } else {
+    // Only note (or nothing) changed — leave status and completed_at untouched
+    await c.env.DB.prepare(
+      `UPDATE tasks SET
+        note = CASE WHEN ? IS NOT NULL THEN ? ELSE note END
+       WHERE id = ?`,
+    )
+      .bind(note ?? null, note ?? null, c.req.param("id"))
       .run();
   }
 

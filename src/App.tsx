@@ -6,7 +6,7 @@ import TodayStudy from "./pages/user/TodayStudy";
 import LessonDetail from "./pages/user/LessonDetail";
 import type { User } from "./types";
 
-type Page =
+export type Page =
   | { name: "dashboard" }
   | { name: "admin-courses" }
   | { name: "today-study" }

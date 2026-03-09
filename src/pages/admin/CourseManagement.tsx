@@ -444,11 +444,7 @@ function LessonFormModal({
         setError(data.error ?? "保存失败");
         return;
       }
-      const data = (await r.json()) as { lesson?: Lesson; error?: string };
-      if (!r.ok) {
-        setError(data.error ?? "保存失败");
-        return;
-      }
+      const data = (await r.json()) as { lesson?: Lesson };
       if (!data.lesson) {
         setError("保存成功，但未能获取最新课时数据，请刷新页面");
         return;

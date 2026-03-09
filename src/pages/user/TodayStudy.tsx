@@ -182,6 +182,7 @@ function AddLessonModal({
   const [lessonsByChapter, setLessonsByChapter] = useState<Record<number, Lesson[]>>({});
   const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
   const [adding, setAdding] = useState<number | null>(null);
+  const [addError, setAddError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -224,13 +225,21 @@ function AddLessonModal({
 
   const handleAdd = async (lessonId: number) => {
     setAdding(lessonId);
+    setAddError("");
     try {
-      await fetch("/api/study-records", {
+      const res = await fetch("/api/study-records", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lesson_id: lessonId, study_date: today }),
       });
+      if (!res.ok) {
+        const data = (await res.json()) as { error?: string };
+        setAddError(data.error ?? "添加失败，请重试");
+        return;
+      }
       onAdded();
+    } catch {
+      setAddError("网络错误，请重试");
     } finally {
       setAdding(null);
     }
@@ -268,6 +277,11 @@ function AddLessonModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+          {addError && (
+            <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-3 py-2">
+              {addError}
+            </div>
+          )}
           {loading && (
             <div className="flex justify-center py-8">
               <div className="w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />

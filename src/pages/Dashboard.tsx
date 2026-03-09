@@ -1,6 +1,5 @@
 import type { User } from "../types";
-
-type Page = { name: string };
+import type { Page } from "../App";
 
 interface DashboardProps {
   user: User;
