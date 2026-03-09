@@ -37,7 +37,7 @@ const PBKDF2_KEY_LENGTH_BITS = 256;
 async function deriveKey(password: string, saltHex: string): Promise<string> {
   const encoder = new TextEncoder();
   const saltBytes = hexToBytes(saltHex);
-  const salt = saltBytes.buffer as ArrayBuffer;
+  const salt = saltBytes.buffer.slice(saltBytes.byteOffset, saltBytes.byteOffset + saltBytes.byteLength) as ArrayBuffer;
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     encoder.encode(password),
