@@ -79,9 +79,6 @@ function bytesToHex(bytes: Uint8Array): string {
  * Body: { username: string, password: string }
  */
 app.post("/api/login", async (c) => {
-  // Fail fast: ensure JWT secret is configured before doing any work
-  const secret = getJwtSecret(c.env);
-
   let body: { username: string; password: string };
   try {
     body = await c.req.json<{ username: string; password: string }>();
@@ -117,7 +114,7 @@ app.post("/api/login", async (c) => {
     exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
   };
 
-  const token = await sign(payload, secret);
+  const token = await sign(payload, getJwtSecret(c.env));
 
   setCookie(c, "token", token, {
     httpOnly: true,
