@@ -11,6 +11,13 @@ export default function LessonDetail() {
   const { recordId: recordIdParam } = useParams<{ recordId: string }>();
   const recordId = Number(recordIdParam);
   const navigate = useNavigate();
+
+  // Guard against non-numeric / missing route param
+  if (!Number.isFinite(recordId) || recordId <= 0) {
+    navigate("/study", { replace: true });
+    return null;
+  }
+
   const [record, setRecord] = useState<StudyRecord | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tab, setTab] = useState<Tab>("tasks");
@@ -23,6 +30,10 @@ export default function LessonDetail() {
         fetch(`/api/study-records?date=${new Date().toISOString().slice(0, 10)}`),
         fetch(`/api/study-records/${recordId}/tasks`),
       ]);
+      if (!recRes.ok || !taskRes.ok) {
+        setError("加载失败");
+        return;
+      }
       const recData = (await recRes.json()) as { records: StudyRecord[] };
       const taskData = (await taskRes.json()) as { tasks: Task[] };
 

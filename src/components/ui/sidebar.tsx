@@ -288,45 +288,25 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 function SidebarMenuButton({
-  asChild = false,
   isActive = false,
   className,
   children,
   ...props
 }: React.ComponentProps<"button"> & {
-  asChild?: boolean
   isActive?: boolean
 }) {
-  const Comp = asChild ? React.Fragment : "button"
-  const compProps = asChild ? {} : props
-
-  if (asChild) {
-    return (
-      <span
-        data-slot="sidebar-menu-button"
-        data-active={isActive}
-        className={cn(
-          "flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:pointer-events-none disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
-          className
-        )}
-      >
-        {children}
-      </span>
-    )
-  }
-
   return (
-    <Comp
+    <button
       data-slot="sidebar-menu-button"
       data-active={isActive}
       className={cn(
         "flex w-full cursor-pointer items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring disabled:pointer-events-none disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
         className
       )}
-      {...compProps}
+      {...props}
     >
       {children}
-    </Comp>
+    </button>
   )
 }
 
