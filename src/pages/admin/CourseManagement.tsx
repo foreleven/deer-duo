@@ -19,8 +19,10 @@ export default function CourseManagement() {
   // Load subjects
   useEffect(() => {
     fetch("/api/subjects")
-      .then((r) => r.json() as Promise<{ subjects: Subject[] }>)
-      .then(({ subjects }) => {
+      .then(async (r) => {
+        const data = (await r.json()) as { subjects?: Subject[]; error?: string };
+        if (!r.ok) { setError(data.error ?? "加载学科失败"); return; }
+        const subjects = data.subjects ?? [];
         setSubjects(subjects);
         if (subjects.length) setActiveSubjectId(subjects[0].id);
       })
@@ -30,9 +32,11 @@ export default function CourseManagement() {
 
   const loadChapters = useCallback((subjectId: number) => {
     fetch(`/api/subjects/${subjectId}/chapters`)
-      .then((r) => r.json() as Promise<{ chapters: Chapter[] }>)
-      .then(({ chapters }) => {
-        setChapters(chapters);
+      .then(async (r) => {
+        const data = (await r.json()) as { chapters?: Chapter[]; error?: string };
+        if (!r.ok) { setError(data.error ?? "加载章节失败"); return; }
+        setError("");
+        setChapters(data.chapters ?? []);
         setSelectedChapterId(null);
         setLessons([]);
       })
@@ -43,13 +47,24 @@ export default function CourseManagement() {
     if (activeSubjectId) loadChapters(activeSubjectId);
   }, [activeSubjectId, loadChapters]);
 
+  const selectedChapterIdRef = useRef<number | null>(null);
+
   const loadLessons = useCallback((chapterId: number) => {
+    selectedChapterIdRef.current = chapterId;
     setLessonsLoading(true);
     fetch(`/api/chapters/${chapterId}/lessons`)
-      .then((r) => r.json() as Promise<{ lessons: Lesson[] }>)
-      .then(({ lessons }) => setLessons(lessons))
+      .then(async (r) => {
+        const data = (await r.json()) as { lessons?: Lesson[]; error?: string };
+        // Discard stale responses from previously selected chapters
+        if (selectedChapterIdRef.current !== chapterId) return;
+        if (!r.ok) { setError(data.error ?? "加载课时失败"); return; }
+        setError("");
+        setLessons(data.lessons ?? []);
+      })
       .catch(() => setError("加载课时失败"))
-      .finally(() => setLessonsLoading(false));
+      .finally(() => {
+        if (selectedChapterIdRef.current === chapterId) setLessonsLoading(false);
+      });
   }, []);
 
   const handleSelectChapter = (chapterId: number) => {
@@ -760,9 +775,9 @@ function LessonCard({
         </div>
         {lesson.tags && (
           <div className="flex flex-wrap gap-1 ml-4 mb-2">
-            {lesson.tags.split(",").map((tag) => (
+            {lesson.tags.split(",").map((t) => t.trim()).filter(Boolean).map((tag) => (
               <span key={tag} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                {tag.trim()}
+                {tag}
               </span>
             ))}
           </div>
@@ -791,7 +806,7 @@ function LessonCard({
         >
           {lesson.status === "active" ? "已发布" : "已停用"}
         </span>
-        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
           <button
             onClick={onToggleStatus}
             className={`text-xs transition-colors ${

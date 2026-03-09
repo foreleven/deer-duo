@@ -99,7 +99,7 @@ export async function importCourses(c: Context<{ Bindings: Bindings }>) {
 
   for (let ci = 0; ci < body.length; ci++) {
     const ch = body[ci];
-    if (!ch.title?.trim()) continue;
+    if (typeof ch.title !== "string" || !ch.title.trim()) continue;
 
     const chResult = await c.env.DB.prepare(
       "INSERT INTO chapters (subject_id, title, sort_order) VALUES (?, ?, ?)",
@@ -114,7 +114,7 @@ export async function importCourses(c: Context<{ Bindings: Bindings }>) {
     if (Array.isArray(ch.lessons)) {
       for (let li = 0; li < ch.lessons.length; li++) {
         const ls = ch.lessons[li];
-        if (!ls.title?.trim()) continue;
+        if (typeof ls.title !== "string" || !ls.title.trim()) continue;
         await c.env.DB.prepare(
           "INSERT INTO lessons (chapter_id, title, content, tags, sort_order, status, created_by) VALUES (?, ?, ?, ?, ?, 'active', ?)",
         )
