@@ -209,6 +209,123 @@ describe("Chapters", () => {
   });
 });
 
+// ─── Course Import ────────────────────────────────────────────────────────────
+
+describe("Course Import", () => {
+  it("POST /api/subjects/:subjectId/import — 401 without auth", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    await res.text();
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/subjects/:subjectId/import — user gets 403", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: userCookie },
+    });
+    await res.text();
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/subjects/:subjectId/import — invalid subjectId returns 400", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/abc/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify([{ title: "章节" }]),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/subjects/:subjectId/import — empty array returns 400", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify([]),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/subjects/:subjectId/import — non-array body returns 400", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ title: "not an array" }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/subjects/:subjectId/import — success returns 201 with created counts", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify([
+        {
+          title: "导入章节一",
+          lessons: [
+            { title: "导入课时A", content: "内容A", tags: "标签1" },
+            { title: "导入课时B" },
+          ],
+        },
+        {
+          title: "导入章节二",
+          lessons: [{ title: "导入课时C" }],
+        },
+      ]),
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { ok: boolean; created: { chapters: number; lessons: number } };
+    expect(data.ok).toBe(true);
+    expect(data.created.chapters).toBe(2);
+    expect(data.created.lessons).toBe(3);
+  });
+
+  it("POST /api/subjects/:subjectId/import — chapters and lessons actually inserted", async () => {
+    const importRes = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify([
+        { title: "验证章节", lessons: [{ title: "验证课时", tags: "验证标签" }] },
+      ]),
+    });
+    expect(importRes.status).toBe(201);
+
+    // Verify chapter appears in the chapter list
+    const chapRes = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+      headers: { Cookie: adminCookie },
+    });
+    const { chapters } = (await chapRes.json()) as { chapters: { title: string; id: number }[] };
+    const importedChapter = chapters.find((c) => c.title === "验证章节");
+    expect(importedChapter).toBeDefined();
+
+    // Verify lesson appears under the chapter
+    const lessonRes = await fetch(`${BASE_URL}/api/chapters/${Number(importedChapter!.id)}/lessons`, {
+      headers: { Cookie: adminCookie },
+    });
+    const { lessons } = (await lessonRes.json()) as { lessons: { title: string; tags: string }[] };
+    expect(lessons.some((l) => l.title === "验证课时")).toBe(true);
+  });
+
+  it("POST /api/subjects/:subjectId/import — skips entries with non-string or empty titles", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify([
+        { title: "有效章节" },
+        { title: "   " },
+        { title: 123 },
+      ]),
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { ok: boolean; created: { chapters: number } };
+    expect(data.ok).toBe(true);
+    // Only the "有效章节" entry should be created
+    expect(data.created.chapters).toBe(1);
+  });
+});
+
 // ─── Lessons ──────────────────────────────────────────────────────────────────
 
 describe("Lessons", () => {
