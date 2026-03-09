@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Subject, Chapter, Lesson } from "../../types";
-
-interface CourseManagementProps {
-  onBack: () => void;
-}
 
 type Modal =
   | { type: "chapter-create"; subjectId: number }
@@ -12,7 +9,8 @@ type Modal =
   | { type: "lesson-edit"; lesson: Lesson }
   | { type: "lesson-view"; lesson: Lesson };
 
-export default function CourseManagement({ onBack }: CourseManagementProps) {
+export default function CourseManagement() {
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activeSubjectId, setActiveSubjectId] = useState<number | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
@@ -117,7 +115,7 @@ export default function CourseManagement({ onBack }: CourseManagementProps) {
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={onBack}
+          onClick={() => navigate("/dashboard")}
           className="text-gray-400 hover:text-gray-600 transition-colors"
         >
           ← 返回

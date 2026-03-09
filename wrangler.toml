@@ -22,6 +22,7 @@ enabled = true
 [observability.logs]
 enabled = true
 
-# JWT_SECRET must be set as a Wrangler secret (never commit real secrets):
+# JWT_SECRET is injected automatically by CI via the GitHub Actions secret JWT_SECRET.
+# To set it manually for local dev / one-off runs:
 #   npx wrangler secret put JWT_SECRET
 # [vars] section intentionally has no JWT_SECRET for production use.

@@ -46,7 +46,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload --env preview
+          command: versions upload
 
       - name: Smoke test preview
         if: github.event_name == 'pull_request'
@@ -70,6 +70,14 @@ jobs:
           [ "$STATUS" = "401" ] || { echo "::error::POST /api/login expected 401, got $STATUS"; exit 1; }
 
           echo "All smoke tests passed ✓"
+
+      - name: Set JWT_SECRET (production)
+        if: github.event_name == 'push'
+        run: echo "${JWT_SECRET}" | npx wrangler secret put JWT_SECRET
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Deploy to Production (main)
         if: github.event_name == 'push'
