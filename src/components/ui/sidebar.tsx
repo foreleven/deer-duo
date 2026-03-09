@@ -100,7 +100,7 @@ function Sidebar({
   children,
   ...props
 }: React.ComponentProps<"aside">) {
-  const { open } = useSidebar()
+  const { open, setOpen } = useSidebar()
 
   return (
     <>
@@ -108,10 +108,7 @@ function Sidebar({
       {open && (
         <div
           className="fixed inset-0 z-20 bg-black/50 md:hidden"
-          onClick={() => {
-            const ctx = React.useContext(SidebarContext)
-            ctx?.setOpen(false)
-          }}
+          onClick={() => setOpen(false)}
         />
       )}
       <aside
