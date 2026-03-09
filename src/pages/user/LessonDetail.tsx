@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import type { StudyRecord, Task } from "../../types";
 import { TASK_TYPE_LABELS } from "../../types";
 
-type Tab = "tasks" | "content" | "ai";
+type Tab = "tasks" | "ai";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
@@ -112,13 +112,13 @@ export default function LessonDetail() {
           ← 返回
         </button>
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-bold text-gray-900 truncate">{record.lesson_title}</h2>
+          <h2 className="text-xl font-bold text-gray-900 truncate">{record.chapter_title}</h2>
           <div className="flex items-center gap-2 mt-0.5 text-sm text-gray-400">
             <span>{record.subject_name}</span>
-            {record.chapter_title && (
+            {record.course_title && (
               <>
                 <span>·</span>
-                <span>{record.chapter_title}</span>
+                <span>{record.course_title}</span>
               </>
             )}
             {tasks.length > 0 && (
@@ -138,7 +138,6 @@ export default function LessonDetail() {
         {(
           [
             { key: "tasks", label: "学习任务" },
-            { key: "content", label: "课时内容" },
             { key: "ai", label: "🤖 AI 辅导" },
           ] as { key: Tab; label: string }[]
         ).map(({ key, label }) => (
@@ -164,9 +163,6 @@ export default function LessonDetail() {
           onDelete={handleDeleteTask}
           onAdd={handleAddTask}
         />
-      )}
-      {tab === "content" && (
-        <ContentPanel content={record.lesson_content ?? null} />
       )}
       {tab === "ai" && (
         <AiChatPanel recordId={recordId} />
@@ -291,22 +287,6 @@ function TasksPanel({
           </button>
         </div>
       </form>
-    </div>
-  );
-}
-
-// ── Content Panel ─────────────────────────────────────────────────────────────
-
-function ContentPanel({ content }: { content: string | null }) {
-  return (
-    <div className="bg-white rounded-xl shadow-sm px-6 py-5">
-      {content ? (
-        <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
-          {content}
-        </pre>
-      ) : (
-        <p className="text-gray-400 text-sm text-center py-8">暂无课时内容</p>
-      )}
     </div>
   );
 }

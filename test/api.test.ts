@@ -18,12 +18,10 @@ let adminCookie = "";
 let userCookie = "";
 let subjectId = 0;
 
+let testCourseId = 0;
 let testChapterId = 0;
-let testLessonId = 0;
-let testLessonChapterId = 0;
+let testRecordChapterId = 0;
 let testRecordId = 0;
-let testRecordLessonId = 0;
-let testInactiveLessonId = 0;
 let testTaskId = 0;
 let testTaskRecordId = 0;
 
@@ -121,34 +119,33 @@ describe("Subjects", () => {
   });
 });
 
-// ─── Chapters ─────────────────────────────────────────────────────────────────
+// ─── Courses ──────────────────────────────────────────────────────────────────
 
-describe("Chapters", () => {
+describe("Courses", () => {
   beforeAll(async () => {
-    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/courses`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ title: "第一章·测试章节", sort_order: 1 }),
+      body: JSON.stringify({ title: "四年级(上)·测试课程", sort_order: 1 }),
     });
-    const data = (await res.json()) as { chapter: { id: number } };
-    testChapterId = Number(data.chapter.id);
+    const data = (await res.json()) as { course: { id: number } };
+    testCourseId = Number(data.course.id);
   });
 
-  it("POST /api/subjects/:subjectId/chapters — returns 201 with chapter data", async () => {
-    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+  it("POST /api/subjects/:subjectId/courses — returns 201 with course data", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/courses`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ title: "第二章·独立测试" }),
+      body: JSON.stringify({ title: "四年级(下)·独立测试" }),
     });
     expect(res.status).toBe(201);
-    const data = (await res.json()) as { chapter: { id: number; title: string } };
-    expect(data.chapter.title).toBe("第二章·独立测试");
-    expect(Number(data.chapter.id)).toBeGreaterThan(0);
+    const data = (await res.json()) as { course: { id: number; title: string } };
+    expect(data.course.title).toBe("四年级(下)·独立测试");
+    expect(Number(data.course.id)).toBeGreaterThan(0);
   });
 
-  it("POST /api/subjects/:subjectId/chapters — user gets 403", async () => {
-    // Server checks role before reading body; omit body to avoid TCP contamination
-    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+  it("POST /api/subjects/:subjectId/courses — user gets 403", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/courses`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
     });
@@ -156,8 +153,8 @@ describe("Chapters", () => {
     expect(res.status).toBe(403);
   });
 
-  it("POST /api/subjects/:subjectId/chapters — empty title returns 400", async () => {
-    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+  it("POST /api/subjects/:subjectId/courses — empty title returns 400", async () => {
+    const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/courses`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
       body: JSON.stringify({ title: "   " }),
@@ -165,9 +162,96 @@ describe("Chapters", () => {
     expect(res.status).toBe(400);
   });
 
-  it("GET /api/subjects/:subjectId/chapters — returns chapter list", async () => {
+  it("GET /api/subjects/:subjectId/courses — returns course list", async () => {
     const res = await fetch(
-      `${BASE_URL}/api/subjects/${subjectId}/chapters`,
+      `${BASE_URL}/api/subjects/${subjectId}/courses`,
+      { headers: { Cookie: userCookie } },
+    );
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { courses: { id: number }[] };
+    expect(data.courses.some((co) => Number(co.id) === testCourseId)).toBe(true);
+  });
+
+  it("PUT /api/courses/:id — admin can update course title", async () => {
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ title: "四年级(上)·已更新" }),
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok: boolean };
+    expect(data.ok).toBe(true);
+  });
+
+  it("DELETE /api/courses/:id — user gets 403", async () => {
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}`, {
+      method: "DELETE",
+      headers: { Cookie: userCookie },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("DELETE /api/courses/:id — admin can delete course", async () => {
+    const cr = await fetch(`${BASE_URL}/api/subjects/${subjectId}/courses`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ title: "待删除课程" }),
+    });
+    const { course } = (await cr.json()) as { course: { id: number } };
+    const res = await fetch(`${BASE_URL}/api/courses/${Number(course.id)}`, {
+      method: "DELETE",
+      headers: { Cookie: adminCookie },
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
+// ─── Chapters ─────────────────────────────────────────────────────────────────
+
+describe("Chapters", () => {
+  beforeAll(async () => {
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ title: "第一单元·测试章节", sort_order: 1 }),
+    });
+    const data = (await res.json()) as { chapter: { id: number } };
+    testChapterId = Number(data.chapter.id);
+  });
+
+  it("POST /api/courses/:courseId/chapters — returns 201 with chapter data", async () => {
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ title: "第二单元·独立测试" }),
+    });
+    expect(res.status).toBe(201);
+    const data = (await res.json()) as { chapter: { id: number; title: string } };
+    expect(data.chapter.title).toBe("第二单元·独立测试");
+    expect(Number(data.chapter.id)).toBeGreaterThan(0);
+  });
+
+  it("POST /api/courses/:courseId/chapters — user gets 403", async () => {
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: userCookie },
+    });
+    await res.text();
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/courses/:courseId/chapters — empty title returns 400", async () => {
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ title: "   " }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /api/courses/:courseId/chapters — returns chapter list", async () => {
+    const res = await fetch(
+      `${BASE_URL}/api/courses/${testCourseId}/chapters`,
       { headers: { Cookie: userCookie } },
     );
     expect(res.status).toBe(200);
@@ -179,7 +263,7 @@ describe("Chapters", () => {
     const res = await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ title: "第一章·已更新" }),
+      body: JSON.stringify({ title: "第一单元·已更新" }),
     });
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean };
@@ -195,7 +279,7 @@ describe("Chapters", () => {
   });
 
   it("DELETE /api/chapters/:id — admin can delete chapter", async () => {
-    const cr = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+    const cr = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
       body: JSON.stringify({ title: "待删除章节" }),
@@ -234,7 +318,7 @@ describe("Course Import", () => {
     const res = await fetch(`${BASE_URL}/api/subjects/abc/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify([{ title: "章节" }]),
+      body: JSON.stringify([{ title: "课程" }]),
     });
     expect(res.status).toBe(400);
   });
@@ -263,49 +347,49 @@ describe("Course Import", () => {
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
       body: JSON.stringify([
         {
-          title: "导入章节一",
-          lessons: [
-            { title: "导入课时A", content: "内容A", tags: "标签1" },
-            { title: "导入课时B" },
+          title: "导入课程一",
+          chapters: [
+            { title: "导入章节A" },
+            { title: "导入章节B" },
           ],
         },
         {
-          title: "导入章节二",
-          lessons: [{ title: "导入课时C" }],
+          title: "导入课程二",
+          chapters: [{ title: "导入章节C" }],
         },
       ]),
     });
     expect(res.status).toBe(201);
-    const data = (await res.json()) as { ok: boolean; created: { chapters: number; lessons: number } };
+    const data = (await res.json()) as { ok: boolean; created: { courses: number; chapters: number } };
     expect(data.ok).toBe(true);
-    expect(data.created.chapters).toBe(2);
-    expect(data.created.lessons).toBe(3);
+    expect(data.created.courses).toBe(2);
+    expect(data.created.chapters).toBe(3);
   });
 
-  it("POST /api/subjects/:subjectId/import — chapters and lessons actually inserted", async () => {
+  it("POST /api/subjects/:subjectId/import — courses and chapters actually inserted", async () => {
     const importRes = await fetch(`${BASE_URL}/api/subjects/${subjectId}/import`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
       body: JSON.stringify([
-        { title: "验证章节", lessons: [{ title: "验证课时", tags: "验证标签" }] },
+        { title: "验证课程", chapters: [{ title: "验证章节" }] },
       ]),
     });
     expect(importRes.status).toBe(201);
 
-    // Verify chapter appears in the chapter list
-    const chapRes = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
+    // Verify course appears in the course list
+    const courseRes = await fetch(`${BASE_URL}/api/subjects/${subjectId}/courses`, {
       headers: { Cookie: adminCookie },
     });
-    const { chapters } = (await chapRes.json()) as { chapters: { title: string; id: number }[] };
-    const importedChapter = chapters.find((c) => c.title === "验证章节");
-    expect(importedChapter).toBeDefined();
+    const { courses } = (await courseRes.json()) as { courses: { title: string; id: number }[] };
+    const importedCourse = courses.find((c) => c.title === "验证课程");
+    expect(importedCourse).toBeDefined();
 
-    // Verify lesson appears under the chapter
-    const lessonRes = await fetch(`${BASE_URL}/api/chapters/${Number(importedChapter!.id)}/lessons`, {
+    // Verify chapter appears under the course
+    const chapterRes = await fetch(`${BASE_URL}/api/courses/${Number(importedCourse!.id)}/chapters`, {
       headers: { Cookie: adminCookie },
     });
-    const { lessons } = (await lessonRes.json()) as { lessons: { title: string; tags: string }[] };
-    expect(lessons.some((l) => l.title === "验证课时")).toBe(true);
+    const { chapters } = (await chapterRes.json()) as { chapters: { title: string }[] };
+    expect(chapters.some((c) => c.title === "验证章节")).toBe(true);
   });
 
   it("POST /api/subjects/:subjectId/import — skips entries with non-string or empty titles", async () => {
@@ -313,210 +397,15 @@ describe("Course Import", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
       body: JSON.stringify([
-        { title: "有效章节" },
+        { title: "有效课程" },
         { title: "   " },
         { title: 123 },
       ]),
     });
     expect(res.status).toBe(201);
-    const data = (await res.json()) as { ok: boolean; created: { chapters: number } };
+    const data = (await res.json()) as { ok: boolean; created: { courses: number } };
     expect(data.ok).toBe(true);
-    // Only the "有效章节" entry should be created
-    expect(data.created.chapters).toBe(1);
-  });
-});
-
-// ─── Lessons ──────────────────────────────────────────────────────────────────
-
-describe("Lessons", () => {
-  beforeAll(async () => {
-    const chRes = await fetch(
-      `${BASE_URL}/api/subjects/${subjectId}/chapters`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "Lessons测试章节" }),
-      },
-    );
-    const { chapter } = (await chRes.json()) as { chapter: { id: number } };
-    testLessonChapterId = Number(chapter.id);
-
-    const lRes = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({
-          title: "第一课时·测试",
-          content: "# 测试内容\n这是正文。",
-          tags: "测试,入门",
-          sort_order: 0,
-          status: "active",
-        }),
-      },
-    );
-    const { lesson } = (await lRes.json()) as { lesson: { id: number } };
-    testLessonId = Number(lesson.id);
-  });
-
-  it("POST /api/chapters/:chapterId/lessons — returns 201 with full lesson row", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({
-          title: "独立测试课时",
-          content: "独立内容",
-          status: "active",
-        }),
-      },
-    );
-    expect(res.status).toBe(201);
-    const data = (await res.json()) as {
-      lesson: { id: number; chapter_id: number; title: string; content: string };
-    };
-    expect(Number(data.lesson.chapter_id)).toBe(testLessonChapterId);
-    expect(data.lesson.title).toBe("独立测试课时");
-    expect(data.lesson.content).toBe("独立内容");
-  });
-
-  it("POST /api/chapters/:chapterId/lessons — user gets 403", async () => {
-    // Server checks role before reading body; omit body to avoid TCP contamination
-    const res = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: userCookie },
-      },
-    );
-    await res.text();
-    expect(res.status).toBe(403);
-  });
-
-  it("POST /api/chapters/:chapterId/lessons — empty title returns 400", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "" }),
-      },
-    );
-    expect(res.status).toBe(400);
-  });
-
-  it("GET /api/chapters/:chapterId/lessons — returns active lessons for users", async () => {
-    const res = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      { headers: { Cookie: userCookie } },
-    );
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { lessons: { id: number; status: string }[] };
-    expect(data.lessons.some((l) => Number(l.id) === testLessonId)).toBe(true);
-    expect(data.lessons.every((l) => l.status === "active")).toBe(true);
-  });
-
-  it("GET /api/chapters/:chapterId/lessons — admin sees inactive, user does not", async () => {
-    await fetch(`${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ title: "已停用课时", status: "inactive" }),
-    });
-
-    const adminRes = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      { headers: { Cookie: adminCookie } },
-    );
-    const adminData = (await adminRes.json()) as { lessons: { status: string }[] };
-    expect(adminData.lessons.some((l) => l.status === "inactive")).toBe(true);
-
-    const userRes = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      { headers: { Cookie: userCookie } },
-    );
-    const userData = (await userRes.json()) as { lessons: { status: string }[] };
-    expect(userData.lessons.every((l) => l.status === "active")).toBe(true);
-  });
-
-  it("GET /api/lessons/:id — returns lesson detail", async () => {
-    const res = await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
-      headers: { Cookie: userCookie },
-    });
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { lesson: { title: string } };
-    expect(data.lesson.title).toBe("第一课时·测试");
-  });
-
-  it("GET /api/lessons/:id — 404 for non-existent", async () => {
-    const res = await fetch(`${BASE_URL}/api/lessons/99999`, {
-      headers: { Cookie: userCookie },
-    });
-    expect(res.status).toBe(404);
-  });
-
-  it("PUT /api/lessons/:id — admin can update title and content", async () => {
-    const res = await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ title: "第一课时·已更新", content: "更新后内容" }),
-    });
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { lesson: { title: string; content: string } };
-    expect(data.lesson.title).toBe("第一课时·已更新");
-    expect(data.lesson.content).toBe("更新后内容");
-  });
-
-  it("PUT /api/lessons/:id — can explicitly clear content to null", async () => {
-    const res = await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ content: null }),
-    });
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { lesson: { content: string | null } };
-    expect(data.lesson.content).toBeNull();
-    // Restore for subsequent tests
-    await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Cookie: adminCookie },
-      body: JSON.stringify({ content: "# 课时内容", status: "active" }),
-    });
-  });
-
-  it("PUT /api/lessons/:id — user gets 403", async () => {
-    // Server checks role before reading body; omit body to avoid TCP contamination
-    const res = await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json", Cookie: userCookie },
-    });
-    await res.text();
-    expect(res.status).toBe(403);
-  });
-
-  it("DELETE /api/lessons/:id — user gets 403", async () => {
-    const res = await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
-      method: "DELETE",
-      headers: { Cookie: userCookie },
-    });
-    expect(res.status).toBe(403);
-  });
-
-  it("DELETE /api/lessons/:id — admin can delete lesson", async () => {
-    const cr = await fetch(
-      `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "待删除课时" }),
-      },
-    );
-    const { lesson } = (await cr.json()) as { lesson: { id: number } };
-    const res = await fetch(
-      `${BASE_URL}/api/lessons/${Number(lesson.id)}`,
-      { method: "DELETE", headers: { Cookie: adminCookie } },
-    );
-    expect(res.status).toBe(200);
+    expect(data.created.courses).toBe(1);
   });
 });
 
@@ -526,82 +415,93 @@ describe("Study Records", () => {
   const testDate = "2026-03-09";
 
   beforeAll(async () => {
-    const chRes = await fetch(
-      `${BASE_URL}/api/subjects/${subjectId}/chapters`,
+    // Create a course and a chapter to use for study records
+    const coRes = await fetch(
+      `${BASE_URL}/api/subjects/${subjectId}/courses`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "StudyRecords测试章节" }),
+        body: JSON.stringify({ title: "StudyRecords测试课程" }),
+      },
+    );
+    const { course } = (await coRes.json()) as { course: { id: number } };
+
+    const chRes = await fetch(
+      `${BASE_URL}/api/courses/${Number(course.id)}/chapters`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: adminCookie },
+        body: JSON.stringify({ title: "学习记录测试章节" }),
       },
     );
     const { chapter } = (await chRes.json()) as { chapter: { id: number } };
-
-    const lRes = await fetch(
-      `${BASE_URL}/api/chapters/${Number(chapter.id)}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "学习记录测试课时", status: "active" }),
-      },
-    );
-    const { lesson } = (await lRes.json()) as { lesson: { id: number } };
-    testRecordLessonId = Number(lesson.id);
-
-    const inRes = await fetch(
-      `${BASE_URL}/api/chapters/${Number(chapter.id)}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "已停用课时", status: "inactive" }),
-      },
-    );
-    const { lesson: inLesson } = (await inRes.json()) as { lesson: { id: number } };
-    testInactiveLessonId = Number(inLesson.id);
+    testRecordChapterId = Number(chapter.id);
 
     // Pre-create the study record used by duplicate / GET tests
     const srRes = await fetch(`${BASE_URL}/api/study-records`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
-      body: JSON.stringify({ lesson_id: testRecordLessonId, study_date: testDate }),
+      body: JSON.stringify({ chapter_id: testRecordChapterId, study_date: testDate }),
     });
     const { record } = (await srRes.json()) as { record: { id: number } };
     testRecordId = Number(record.id);
   });
 
   it("POST /api/study-records — returns 201 and creates a record", async () => {
+    // Create a fresh chapter for this test to avoid date conflicts
+    const coRes = await fetch(
+      `${BASE_URL}/api/subjects/${subjectId}/courses`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: adminCookie },
+        body: JSON.stringify({ title: "独立SR测试课程" }),
+      },
+    );
+    const { course } = (await coRes.json()) as { course: { id: number } };
+    const chRes = await fetch(
+      `${BASE_URL}/api/courses/${Number(course.id)}/chapters`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: adminCookie },
+        body: JSON.stringify({ title: "独立SR测试章节" }),
+      },
+    );
+    const { chapter } = (await chRes.json()) as { chapter: { id: number } };
+    const freshChapterId = Number(chapter.id);
+
     const res = await fetch(`${BASE_URL}/api/study-records`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
       body: JSON.stringify({
-        lesson_id: testRecordLessonId,
+        chapter_id: freshChapterId,
         study_date: "2026-04-01",
       }),
     });
     expect(res.status).toBe(201);
     const data = (await res.json()) as {
-      record: { id: number; lesson_id: number; study_date: string };
+      record: { id: number; chapter_id: number; study_date: string };
     };
-    expect(Number(data.record.lesson_id)).toBe(testRecordLessonId);
+    expect(Number(data.record.chapter_id)).toBe(freshChapterId);
     expect(data.record.study_date).toBe("2026-04-01");
   });
 
-  it("POST /api/study-records — duplicate (same lesson+date) returns 409", async () => {
+  it("POST /api/study-records — duplicate (same chapter+date) returns 409", async () => {
     const res = await fetch(`${BASE_URL}/api/study-records`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
-      body: JSON.stringify({ lesson_id: testRecordLessonId, study_date: testDate }),
+      body: JSON.stringify({ chapter_id: testRecordChapterId, study_date: testDate }),
     });
     expect(res.status).toBe(409);
     const data = (await res.json()) as { error: string };
     expect(data.error).toMatch(/已绑定/);
   });
 
-  it("POST /api/study-records — inactive lesson returns 404", async () => {
+  it("POST /api/study-records — non-existent chapter returns 404", async () => {
     const res = await fetch(`${BASE_URL}/api/study-records`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
       body: JSON.stringify({
-        lesson_id: testInactiveLessonId,
+        chapter_id: 99999,
         study_date: testDate,
       }),
     });
@@ -625,7 +525,7 @@ describe("Study Records", () => {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
       body: JSON.stringify({
-        lesson_id: testRecordLessonId,
+        chapter_id: testRecordChapterId,
         study_date: deleteDate,
       }),
     });
@@ -654,31 +554,32 @@ describe("Tasks", () => {
   const testDate = "2026-03-11";
 
   beforeAll(async () => {
-    const chRes = await fetch(
-      `${BASE_URL}/api/subjects/${subjectId}/chapters`,
+    // Create a course and chapter, then a study record for this test suite
+    const coRes = await fetch(
+      `${BASE_URL}/api/subjects/${subjectId}/courses`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "Tasks测试章节" }),
+        body: JSON.stringify({ title: "Tasks测试课程" }),
+      },
+    );
+    const { course } = (await coRes.json()) as { course: { id: number } };
+
+    const chRes = await fetch(
+      `${BASE_URL}/api/courses/${Number(course.id)}/chapters`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Cookie: adminCookie },
+        body: JSON.stringify({ title: "任务测试章节" }),
       },
     );
     const { chapter } = (await chRes.json()) as { chapter: { id: number } };
-
-    const lRes = await fetch(
-      `${BASE_URL}/api/chapters/${Number(chapter.id)}/lessons`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Cookie: adminCookie },
-        body: JSON.stringify({ title: "任务测试课时", status: "active" }),
-      },
-    );
-    const { lesson } = (await lRes.json()) as { lesson: { id: number } };
 
     const srRes = await fetch(`${BASE_URL}/api/study-records`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
       body: JSON.stringify({
-        lesson_id: Number(lesson.id),
+        chapter_id: Number(chapter.id),
         study_date: testDate,
       }),
     });

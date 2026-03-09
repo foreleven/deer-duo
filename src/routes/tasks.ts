@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Bindings } from "../lib/bindings";
-import { updateTask, deleteTask } from "../controllers/taskController";
+import { updateTask, deleteTask } from "../controllers/task.controller";
 
 const tasks = new Hono<{ Bindings: Bindings }>();
 
