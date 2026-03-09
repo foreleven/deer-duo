@@ -40,6 +40,7 @@ export default function CourseManagement() {
         setCourses(data.courses ?? []);
         setSelectedCourseId(null);
         setChapters([]);
+        setShowMobileDetail(false);
       })
       .catch(() => setError("加载课程失败"));
   }, []);
@@ -79,6 +80,7 @@ export default function CourseManagement() {
     if (selectedCourseId === courseId) {
       setSelectedCourseId(null);
       setChapters([]);
+      setShowMobileDetail(false);
     }
     if (activeSubjectId) loadCourses(activeSubjectId);
   };
