@@ -16,6 +16,12 @@ database_id = "dceba6c0-8eb1-4640-ab6c-66d179129e43"
 [ai]
 binding = "AI"
 
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+
 # JWT_SECRET must be set as a Wrangler secret (never commit real secrets):
 #   npx wrangler secret put JWT_SECRET
 # [vars] section intentionally has no JWT_SECRET for production use.
