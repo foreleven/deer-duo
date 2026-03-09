@@ -1,0 +1,16 @@
+# wrangler config for local tests (used by vitest-pool-workers)
+# The [ai] binding is intentionally omitted — AI endpoints are tested for
+# auth/validation only; the actual AI.run() call returns 503 in tests.
+# The [assets] binding is omitted — the SPA is not needed for API tests.
+name = "deer-duo"
+main = "src/index.ts"
+compatibility_date = "2025-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "deer-duo"
+database_id = "dceba6c0-8eb1-4640-ab6c-66d179129e43"
+
+[vars]
+# JWT_SECRET is injected by vitest miniflare bindings override (see vitest.config.ts)

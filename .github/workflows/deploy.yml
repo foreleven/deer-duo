@@ -32,13 +32,44 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply deer-duo --remote
+
       - name: Deploy Preview (PR)
+        id: deploy
         if: github.event_name == 'pull_request'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: versions upload --env preview
+
+      - name: Smoke test preview
+        if: github.event_name == 'pull_request'
+        run: |
+          PREVIEW_URL="${{ steps.deploy.outputs.deployment-url }}"
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "::warning::No deployment-url output from wrangler-action; skipping smoke test"
+            exit 0
+          fi
+          echo "Smoke testing $PREVIEW_URL ..."
+
+          # 1. Unauthenticated /api/me returns 401 (Worker is live)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL/api/me" || echo "000")
+          [ "$STATUS" = "401" ] || { echo "::error::GET /api/me expected 401, got $STATUS"; exit 1; }
+
+          # 2. POST /api/login with bad credentials returns 401
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST -H "Content-Type: application/json" \
+            -d '{"username":"nobody","password":"wrong"}' \
+            "$PREVIEW_URL/api/login" || echo "000")
+          [ "$STATUS" = "401" ] || { echo "::error::POST /api/login expected 401, got $STATUS"; exit 1; }
+
+          echo "All smoke tests passed ✓"
 
       - name: Deploy to Production (main)
         if: github.event_name == 'push'
