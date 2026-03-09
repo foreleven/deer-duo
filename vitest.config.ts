@@ -1,21 +1,17 @@
-import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+import { defineConfig } from "vitest/config";
 
-export default defineWorkersConfig({
+/**
+ * Plain vitest config — tests run in Node.js and make real HTTP requests to a
+ * `wrangler dev --local` server started before the test run.
+ *
+ * Set TEST_BASE_URL=http://localhost:8787 (default) or point at any live URL.
+ */
+export default defineConfig({
   test: {
     globals: true,
-    poolOptions: {
-      workers: {
-        singleWorker: true,
-        wrangler: {
-          configPath: "./wrangler.test.toml",
-        },
-        miniflare: {
-          bindings: {
-            JWT_SECRET: "test-secret-key-for-vitest",
-          },
-          d1Databases: ["DB"],
-        },
-      },
-    },
+    // Allow time for wrangler dev cold-start on the first request
+    testTimeout: 15_000,
+    hookTimeout: 30_000,
   },
 });
+

@@ -11,7 +11,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    name: Run API tests (vitest + Miniflare)
+    name: API tests (wrangler dev --local)
     permissions:
       contents: read
 
@@ -28,5 +28,40 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build (required for [assets] binding)
+        run: npm run build
+
+      - name: Apply D1 migrations (local)
+        run: npx wrangler d1 migrations apply deer-duo --local
+
+      - name: Seed test user (password = admin123)
+        run: |
+          npx wrangler d1 execute deer-duo --local --command \
+            "INSERT OR IGNORE INTO users (username, password_hash, salt, role) VALUES ('testuser', '1734f186dc6e48c93cfb64aeaa28d5942a94c8bf8631621212c739f938faf8e1', 'a7f3d2e1b4c5906f82d14e3b7a0c9e8f', 'user')"
+
+      - name: Start wrangler dev (local)
+        run: |
+          printf 'JWT_SECRET=test-secret-key-for-ci\n' > .dev.vars
+          npx wrangler dev --local --port 8787 2>&1 &
+          echo "WRANGLER_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for wrangler dev to be ready
+        run: |
+          echo "Waiting for http://localhost:8787 ..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8787/api/me 2>/dev/null || true)
+            if [ "$STATUS" = "401" ] || [ "$STATUS" = "200" ]; then
+              echo "Server ready (HTTP $STATUS) after $i attempt(s)."
+              exit 0
+            fi
+            echo "  attempt $i: HTTP $STATUS — retrying in 2 s ..."
+            sleep 2
+          done
+          echo "::error::wrangler dev did not become ready in time"
+          exit 1
+
       - name: Run API tests
         run: npm test
+        env:
+          TEST_BASE_URL: http://localhost:8787
+
