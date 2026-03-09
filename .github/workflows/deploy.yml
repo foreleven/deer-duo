@@ -52,11 +52,11 @@ jobs:
           echo "Smoke testing $PREVIEW_URL ..."
 
           # 1. Unauthenticated /api/me returns 401 (Worker is live)
-          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" "$PREVIEW_URL/api/me" || echo "000")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL/api/me" || echo "000")
           [ "$STATUS" = "401" ] || { echo "::error::GET /api/me expected 401, got $STATUS"; exit 1; }
 
           # 2. POST /api/login with bad credentials returns 401
-          STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -X POST -H "Content-Type: application/json" \
             -d '{"username":"nobody","password":"wrong"}' \
             "$PREVIEW_URL/api/login" || echo "000")
