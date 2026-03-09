@@ -216,10 +216,16 @@ export default function CourseManagement() {
               </div>
 
               {/* Add chapter inline form */}
-              <NewChapterInline
-                courseId={selectedCourse.id}
-                onSaved={(chapter) => setChapters((prev) => [...prev, chapter])}
-              />
+              <div className="flex flex-wrap gap-2">
+                <NewChapterInline
+                  courseId={selectedCourse.id}
+                  onSaved={(chapter) => setChapters((prev) => [...prev, chapter])}
+                />
+                <UploadChaptersPanel
+                  courseId={selectedCourse.id}
+                  onDone={(newChapters) => setChapters((prev) => [...prev, ...newChapters])}
+                />
+              </div>
 
               {/* Chapter list */}
               {chaptersLoading ? (
@@ -693,5 +699,126 @@ function ChapterRow({
         </button>
       </div>
     </li>
+  );
+}
+
+// ── Upload Chapters from File ──────────────────────────────────────────────────
+
+function UploadChaptersPanel({
+  courseId,
+  onDone,
+}: {
+  courseId: number;
+  onDone: (chapters: Chapter[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState<string>("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setResult("");
+    const f = e.target.files?.[0] ?? null;
+    setFile(f);
+  };
+
+  const handleClose = () => {
+    setOpen(false);
+    setFile(null);
+    setResult("");
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+    setResult("");
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const r = await fetch(`/api/courses/${courseId}/chapters/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await r.json()) as {
+        ok?: boolean;
+        chapters?: Chapter[];
+        error?: string;
+      };
+      if (r.ok && data.ok && data.chapters) {
+        setResult(`✅ 成功导入 ${data.chapters.length} 个章节`);
+        setFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setTimeout(() => {
+          onDone(data.chapters!);
+          setOpen(false);
+          setResult("");
+        }, 1500);
+      } else {
+        setResult(`❌ ${data.error ?? "导入失败"}`);
+      }
+    } catch {
+      setResult("❌ 网络错误");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-xl shadow-sm transition-colors"
+      >
+        <span className="text-base leading-none">📄</span> 从文件导入
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-amber-800">从文件导入章节</span>
+        <button
+          type="button"
+          onClick={handleClose}
+          className="text-amber-400 hover:text-amber-600 text-lg leading-none"
+        >
+          ×
+        </button>
+      </div>
+      <p className="text-xs text-amber-700 leading-relaxed">
+        上传 PDF 或 Word（.doc / .docx）文件，AI 将自动识别目录结构并创建章节。
+      </p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx"
+        onChange={handleFileChange}
+        className="w-full text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200 cursor-pointer"
+      />
+      {file && (
+        <p className="text-xs text-amber-700 truncate">已选择：{file.name}</p>
+      )}
+      {result && (
+        <p className="text-xs text-amber-900">{result}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={handleClose}
+          className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleUpload}
+          disabled={uploading || !file}
+          className="text-sm bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg font-medium transition-colors"
+        >
+          {uploading ? "解析中..." : "开始导入"}
+        </button>
+      </div>
+    </div>
   );
 }
