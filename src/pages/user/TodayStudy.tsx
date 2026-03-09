@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import type { Subject, Chapter, Lesson, StudyRecord } from "../../types";
 import { SUBJECT_COLORS } from "../../types";
 
-interface TodayStudyProps {
-  onViewLesson: (recordId: number) => void;
-}
-
-export default function TodayStudy({ onViewLesson }: TodayStudyProps) {
+export default function TodayStudy() {
+  const navigate = useNavigate();
   const today = new Date().toISOString().slice(0, 10);
   const [records, setRecords] = useState<StudyRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -100,7 +98,7 @@ export default function TodayStudy({ onViewLesson }: TodayStudyProps) {
               {/* Info */}
               <div className="flex-1 min-w-0">
                 <button
-                  onClick={() => onViewLesson(rec.id)}
+                  onClick={() => navigate(`/study/${rec.id}`)}
                   className="font-medium text-gray-800 hover:text-indigo-600 text-left truncate block w-full"
                 >
                   {rec.lesson_title}
@@ -130,7 +128,7 @@ export default function TodayStudy({ onViewLesson }: TodayStudyProps) {
                   {statusLabel(rec.status)}
                 </span>
                 <button
-                  onClick={() => onViewLesson(rec.id)}
+                  onClick={() => navigate(`/study/${rec.id}`)}
                   className="text-xs text-indigo-500 hover:text-indigo-700"
                 >
                   查看

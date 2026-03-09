@@ -1,17 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import type { StudyRecord, Task } from "../../types";
 import { TASK_TYPE_LABELS } from "../../types";
-
-interface LessonDetailProps {
-  recordId: number;
-  onBack: () => void;
-}
 
 type Tab = "tasks" | "content" | "ai";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
 
-export default function LessonDetail({ recordId, onBack }: LessonDetailProps) {
+export default function LessonDetail() {
+  const { recordId: recordIdParam } = useParams<{ recordId: string }>();
+  const recordId = Number(recordIdParam);
+  const navigate = useNavigate();
   const [record, setRecord] = useState<StudyRecord | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [tab, setTab] = useState<Tab>("tasks");
@@ -85,7 +84,7 @@ export default function LessonDetail({ recordId, onBack }: LessonDetailProps) {
     return (
       <div className="text-center py-16">
         <p className="text-gray-400">{error || "记录不存在"}</p>
-        <button onClick={onBack} className="mt-4 text-indigo-600 text-sm">
+        <button onClick={() => navigate("/study")} className="mt-4 text-indigo-600 text-sm">
           返回
         </button>
       </div>
@@ -98,7 +97,7 @@ export default function LessonDetail({ recordId, onBack }: LessonDetailProps) {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <button onClick={onBack} className="text-gray-400 hover:text-gray-600 mt-0.5">
+        <button onClick={() => navigate("/study")} className="text-gray-400 hover:text-gray-600 mt-0.5">
           ← 返回
         </button>
         <div className="flex-1 min-w-0">
