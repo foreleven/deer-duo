@@ -15,6 +15,7 @@ export default function CourseManagement() {
   const [chaptersLoading, setChaptersLoading] = useState(false);
   const [error, setError] = useState("");
   const [showImport, setShowImport] = useState(false);
+  const [showMobileDetail, setShowMobileDetail] = useState(false);
 
   // Load subjects
   useEffect(() => {
@@ -39,6 +40,7 @@ export default function CourseManagement() {
         setCourses(data.courses ?? []);
         setSelectedCourseId(null);
         setChapters([]);
+        setShowMobileDetail(false);
       })
       .catch(() => setError("加载课程失败"));
   }, []);
@@ -69,6 +71,7 @@ export default function CourseManagement() {
   const handleSelectCourse = (courseId: number) => {
     setSelectedCourseId(courseId);
     loadChapters(courseId);
+    setShowMobileDetail(true);
   };
 
   const handleDeleteCourse = async (courseId: number, title: string) => {
@@ -77,6 +80,7 @@ export default function CourseManagement() {
     if (selectedCourseId === courseId) {
       setSelectedCourseId(null);
       setChapters([]);
+      setShowMobileDetail(false);
     }
     if (activeSubjectId) loadCourses(activeSubjectId);
   };
@@ -121,7 +125,7 @@ export default function CourseManagement() {
       {/* Two-panel layout */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* ── Left Panel: Course List ── */}
-        <aside className="w-72 shrink-0 flex flex-col border-r border-gray-100 bg-gray-50/60 overflow-hidden">
+        <aside className={`flex flex-col border-r border-gray-100 bg-gray-50/60 overflow-hidden md:w-72 md:shrink-0 md:flex ${showMobileDetail ? "hidden" : "flex-1 md:flex-none"}`}>
           {/* Subject selector */}
           <div className="flex gap-1 px-3 pt-3 pb-2 shrink-0 flex-wrap">
             {subjects.map((s) => (
@@ -188,7 +192,16 @@ export default function CourseManagement() {
         </aside>
 
         {/* ── Right Panel: Chapter List ── */}
-        <main className="flex-1 overflow-y-auto bg-white">
+        <main className={`overflow-y-auto bg-white md:flex md:flex-col md:flex-1 ${showMobileDetail ? "flex flex-col flex-1" : "hidden"}`}>
+          {/* Mobile back button */}
+          <div className="md:hidden flex items-center px-4 py-2 border-b border-gray-100 shrink-0">
+            <button
+              onClick={() => setShowMobileDetail(false)}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              ← 课程列表
+            </button>
+          </div>
           {!selectedCourse ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <div className="text-4xl mb-3">📖</div>
@@ -322,7 +335,7 @@ function CourseItem({
         >
           <span className="flex-1 truncate font-medium">{course.title}</span>
           <span
-            className={`flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity ${selected ? "opacity-100" : ""}`}
+            className={`flex gap-1 transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 ${selected ? "md:opacity-100" : ""}`}
           >
             <button
               type="button"
@@ -665,7 +678,7 @@ function ChapterRow({
   return (
     <li className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow">
       <span className="flex-1 text-sm text-gray-800">{chapter.title}</span>
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => { setTitle(chapter.title); setEditing(true); }}
           className="text-xs text-gray-400 hover:text-indigo-600 px-2 py-0.5 rounded"
