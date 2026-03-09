@@ -147,11 +147,12 @@ describe("Chapters", () => {
   });
 
   it("POST /api/subjects/:subjectId/chapters — user gets 403", async () => {
+    // Server checks role before reading body; omit body to avoid TCP contamination
     const res = await fetch(`${BASE_URL}/api/subjects/${subjectId}/chapters`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
-      body: JSON.stringify({ title: "should fail" }),
     });
+    await res.text();
     expect(res.status).toBe(403);
   });
 
@@ -264,14 +265,15 @@ describe("Lessons", () => {
   });
 
   it("POST /api/chapters/:chapterId/lessons — user gets 403", async () => {
+    // Server checks role before reading body; omit body to avoid TCP contamination
     const res = await fetch(
       `${BASE_URL}/api/chapters/${testLessonChapterId}/lessons`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", Cookie: userCookie },
-        body: JSON.stringify({ title: "should fail" }),
       },
     );
+    await res.text();
     expect(res.status).toBe(403);
   });
 
@@ -366,11 +368,12 @@ describe("Lessons", () => {
   });
 
   it("PUT /api/lessons/:id — user gets 403", async () => {
+    // Server checks role before reading body; omit body to avoid TCP contamination
     const res = await fetch(`${BASE_URL}/api/lessons/${testLessonId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
-      body: JSON.stringify({ title: "fail" }),
     });
+    await res.text();
     expect(res.status).toBe(403);
   });
 
@@ -707,11 +710,12 @@ describe("Tasks", () => {
   });
 
   it("PATCH /api/tasks/:id — 404 for task not belonging to user", async () => {
+    // Server checks task exists before reading body; omit body to avoid TCP contamination
     const res = await fetch(`${BASE_URL}/api/tasks/99999`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Cookie: userCookie },
-      body: JSON.stringify({ status: "done" }),
     });
+    await res.text();
     expect(res.status).toBe(404);
   });
 
