@@ -4,8 +4,8 @@ import type { Bindings } from "./lib/bindings";
 
 import auth from "./routes/auth";
 import subjects from "./routes/subjects";
+import courses from "./routes/courses";
 import chapters from "./routes/chapters";
-import lessons from "./routes/lessons";
 import studyRecords from "./routes/studyRecords";
 import tasks from "./routes/tasks";
 
@@ -23,8 +23,8 @@ app.use(
 
 app.route("/api", auth);
 app.route("/api/subjects", subjects);
+app.route("/api/courses", courses);
 app.route("/api/chapters", chapters);
-app.route("/api/lessons", lessons);
 app.route("/api/study-records", studyRecords);
 app.route("/api/tasks", tasks);
 

@@ -11,7 +11,7 @@ export type Subject = {
   sort_order: number;
 };
 
-export type Chapter = {
+export type Course = {
   id: number;
   subject_id: number;
   title: string;
@@ -19,32 +19,26 @@ export type Chapter = {
   created_at: string;
 };
 
-export type Lesson = {
+export type Chapter = {
   id: number;
-  chapter_id: number;
+  course_id: number;
   title: string;
-  content: string | null;
-  tags: string | null;
   sort_order: number;
-  status: "active" | "inactive";
-  created_by: number | null;
   created_at: string;
-  updated_at: string;
 };
 
 export type StudyRecord = {
   id: number;
   user_id: number;
-  lesson_id: number;
+  chapter_id: number;
   study_date: string;
   status: "pending" | "in_progress" | "done";
   created_at: string;
   // joined fields
-  lesson_title?: string;
-  lesson_content?: string | null;
+  chapter_title?: string;
+  course_title?: string;
   subject_name?: string;
   subject_code?: string;
-  chapter_title?: string;
   task_total?: number;
   task_done?: number;
 };

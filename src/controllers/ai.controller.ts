@@ -14,16 +14,17 @@ export async function aiChat(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.json({ error: "未登录" }, 401);
 
   const record = await c.env.DB.prepare(
-    `SELECT sr.id, l.title AS lesson_title, l.content AS lesson_content,
+    `SELECT sr.id, ch.title AS chapter_title,
+            co.title AS course_title,
             s.name AS subject_name
      FROM study_records sr
-     JOIN lessons l ON l.id = sr.lesson_id
-     JOIN chapters ch ON ch.id = l.chapter_id
-     JOIN subjects s ON s.id = ch.subject_id
+     JOIN chapters ch ON ch.id = sr.chapter_id
+     JOIN courses co ON co.id = ch.course_id
+     JOIN subjects s ON s.id = co.subject_id
      WHERE sr.id = ? AND sr.user_id = ?`,
   )
     .bind(c.req.param("recordId"), user.sub)
-    .first<{ id: number; lesson_title: string; lesson_content: string | null; subject_name: string }>();
+    .first<{ id: number; chapter_title: string; course_title: string; subject_name: string }>();
 
   if (!record) return c.json({ error: "记录不存在" }, 404);
 
@@ -54,12 +55,10 @@ export async function aiChat(c: Context<{ Bindings: Bindings }>) {
         .join("\n")
     : "（暂无任务）";
 
-  const safeTitle = (record.lesson_title ?? "").replace(/[[\]]/g, "");
-  const contentSummary = (record.lesson_content ?? "（暂无内容）").slice(0, 500);
+  const safeTitle = (record.chapter_title ?? "").replace(/[[\]]/g, "");
 
-  const systemPrompt = `你是一名专业的中小学辅导老师，当前辅导的科目是【${record.subject_name}】。
-今天的学习课时是：【${safeTitle}】
-课时内容摘要：${contentSummary}
+  const systemPrompt = `你是一名专业的中小学辅导老师，当前辅导的科目是【${record.subject_name}】，课程是【${record.course_title}】。
+今天学习的章节是：【${safeTitle}】
 今日学习任务：
 ${taskList}
 请根据以上内容，用简单易懂的语言回答学生的问题，或按需生成练习题。回答要简洁，适合中小学生阅读。`;

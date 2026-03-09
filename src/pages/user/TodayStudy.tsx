@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import type { Subject, Chapter, Lesson, StudyRecord } from "../../types";
+import type { Subject, Course, Chapter, StudyRecord } from "../../types";
 import { SUBJECT_COLORS } from "../../types";
 
 export default function TodayStudy() {
@@ -8,7 +8,7 @@ export default function TodayStudy() {
   const today = new Date().toISOString().slice(0, 10);
   const [records, setRecords] = useState<StudyRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddLesson, setShowAddLesson] = useState(false);
+  const [showAddChapter, setShowAddChapter] = useState(false);
   const [error, setError] = useState("");
 
   const loadRecords = useCallback(async () => {
@@ -28,7 +28,7 @@ export default function TodayStudy() {
   }, [loadRecords]);
 
   const handleRemoveRecord = async (recordId: number) => {
-    if (!confirm("确认取消绑定该课时？")) return;
+    if (!confirm("确认取消绑定该章节？")) return;
     await fetch(`/api/study-records/${recordId}`, { method: "DELETE" });
     setRecords((prev) => prev.filter((r) => r.id !== recordId));
   };
@@ -59,10 +59,10 @@ export default function TodayStudy() {
           <p className="text-sm text-gray-400 mt-0.5">{today}</p>
         </div>
         <button
-          onClick={() => setShowAddLesson(true)}
+          onClick={() => setShowAddChapter(true)}
           className="bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg transition-colors"
         >
-          + 添加课时
+          + 添加章节
         </button>
       </div>
 
@@ -77,7 +77,7 @@ export default function TodayStudy() {
         <div className="bg-white rounded-2xl shadow-sm p-10 text-center">
           <div className="text-4xl mb-3">📚</div>
           <p className="text-gray-500 text-sm">今天还没有学习计划</p>
-          <p className="text-gray-400 text-xs mt-1">点击「添加课时」开始今天的学习</p>
+          <p className="text-gray-400 text-xs mt-1">点击「添加章节」开始今天的学习</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -101,14 +101,14 @@ export default function TodayStudy() {
                   onClick={() => navigate(`/study/${rec.id}`)}
                   className="font-medium text-gray-800 hover:text-indigo-600 text-left truncate block w-full"
                 >
-                  {rec.lesson_title}
+                  {rec.chapter_title}
                 </button>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-xs text-gray-400">{rec.subject_name}</span>
-                  {rec.chapter_title && (
+                  {rec.course_title && (
                     <>
                       <span className="text-gray-200">·</span>
-                      <span className="text-xs text-gray-400">{rec.chapter_title}</span>
+                      <span className="text-xs text-gray-400">{rec.course_title}</span>
                     </>
                   )}
                   {(rec.task_total ?? 0) > 0 && (
@@ -145,14 +145,14 @@ export default function TodayStudy() {
         </div>
       )}
 
-      {/* Add lesson modal */}
-      {showAddLesson && (
-        <AddLessonModal
+      {/* Add chapter modal */}
+      {showAddChapter && (
+        <AddChapterModal
           today={today}
-          existingLessonIds={records.map((r) => r.lesson_id)}
-          onClose={() => setShowAddLesson(false)}
+          existingChapterIds={records.map((r) => r.chapter_id)}
+          onClose={() => setShowAddChapter(false)}
           onAdded={() => {
-            setShowAddLesson(false);
+            setShowAddChapter(false);
             loadRecords();
           }}
         />
@@ -161,24 +161,24 @@ export default function TodayStudy() {
   );
 }
 
-// ── Add Lesson Modal ──────────────────────────────────────────────────────────
+// ── Add Chapter Modal ─────────────────────────────────────────────────────────
 
-function AddLessonModal({
+function AddChapterModal({
   today,
-  existingLessonIds,
+  existingChapterIds,
   onClose,
   onAdded,
 }: {
   today: string;
-  existingLessonIds: number[];
+  existingChapterIds: number[];
   onClose: () => void;
   onAdded: () => void;
 }) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activeSubjectId, setActiveSubjectId] = useState<number | null>(null);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [lessonsByChapter, setLessonsByChapter] = useState<Record<number, Lesson[]>>({});
-  const [expandedChapters, setExpandedChapters] = useState<Set<number>>(new Set());
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [chaptersByCourse, setChaptersByCourse] = useState<Record<number, Chapter[]>>({});
+  const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
   const [adding, setAdding] = useState<number | null>(null);
   const [addError, setAddError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -195,40 +195,40 @@ function AddLessonModal({
 
   useEffect(() => {
     if (!activeSubjectId) return;
-    setChapters([]);
-    setLessonsByChapter({});
-    setExpandedChapters(new Set());
-    fetch(`/api/subjects/${activeSubjectId}/chapters`)
-      .then((r) => r.json() as Promise<{ chapters: Chapter[] }>)
-      .then(({ chapters }) => setChapters(chapters));
+    setCourses([]);
+    setChaptersByCourse({});
+    setExpandedCourses(new Set());
+    fetch(`/api/subjects/${activeSubjectId}/courses`)
+      .then((r) => r.json() as Promise<{ courses: Course[] }>)
+      .then(({ courses }) => setCourses(courses));
   }, [activeSubjectId]);
 
-  const loadLessons = async (chapterId: number) => {
-    if (lessonsByChapter[chapterId] !== undefined) return;
-    const r = await fetch(`/api/chapters/${chapterId}/lessons`);
-    const { lessons } = (await r.json()) as { lessons: Lesson[] };
-    setLessonsByChapter((prev) => ({ ...prev, [chapterId]: lessons }));
+  const loadChapters = async (courseId: number) => {
+    if (chaptersByCourse[courseId] !== undefined) return;
+    const r = await fetch(`/api/courses/${courseId}/chapters`);
+    const { chapters } = (await r.json()) as { chapters: Chapter[] };
+    setChaptersByCourse((prev) => ({ ...prev, [courseId]: chapters }));
   };
 
-  const toggleChapter = async (chapterId: number) => {
-    const next = new Set(expandedChapters);
-    if (next.has(chapterId)) {
-      next.delete(chapterId);
+  const toggleCourse = async (courseId: number) => {
+    const next = new Set(expandedCourses);
+    if (next.has(courseId)) {
+      next.delete(courseId);
     } else {
-      next.add(chapterId);
-      await loadLessons(chapterId);
+      next.add(courseId);
+      await loadChapters(courseId);
     }
-    setExpandedChapters(next);
+    setExpandedCourses(next);
   };
 
-  const handleAdd = async (lessonId: number) => {
-    setAdding(lessonId);
+  const handleAdd = async (chapterId: number) => {
+    setAdding(chapterId);
     setAddError("");
     try {
       const res = await fetch("/api/study-records", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lesson_id: lessonId, study_date: today }),
+        body: JSON.stringify({ chapter_id: chapterId, study_date: today }),
       });
       if (!res.ok) {
         const data = (await res.json()) as { error?: string };
@@ -250,7 +250,7 @@ function AddLessonModal({
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-900">添加课时到今天</h3>
+          <h3 className="font-semibold text-gray-900">添加章节到今天</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">
             ×
           </button>
@@ -285,44 +285,44 @@ function AddLessonModal({
               <div className="w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
             </div>
           )}
-          {!loading && chapters.length === 0 && (
-            <p className="text-gray-400 text-sm text-center py-8">该学科暂无章节</p>
+          {!loading && courses.length === 0 && (
+            <p className="text-gray-400 text-sm text-center py-8">该学科暂无课程</p>
           )}
-          {chapters.map((ch) => (
-            <div key={ch.id} className="border border-gray-100 rounded-lg overflow-hidden">
+          {courses.map((co) => (
+            <div key={co.id} className="border border-gray-100 rounded-lg overflow-hidden">
               <button
-                onClick={() => toggleChapter(ch.id)}
+                onClick={() => toggleCourse(co.id)}
                 className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50"
               >
                 <span className="text-gray-400 text-xs">
-                  {expandedChapters.has(ch.id) ? "▼" : "▶"}
+                  {expandedCourses.has(co.id) ? "▼" : "▶"}
                 </span>
-                <span className="text-sm font-medium text-gray-700">{ch.title}</span>
+                <span className="text-sm font-medium text-gray-700">{co.title}</span>
               </button>
-              {expandedChapters.has(ch.id) && (
+              {expandedCourses.has(co.id) && (
                 <ul className="border-t border-gray-50 divide-y divide-gray-50">
-                  {(lessonsByChapter[ch.id] ?? []).length === 0 ? (
-                    <li className="text-xs text-gray-400 text-center py-3">暂无课时</li>
+                  {(chaptersByCourse[co.id] ?? []).length === 0 ? (
+                    <li className="text-xs text-gray-400 text-center py-3">暂无章节</li>
                   ) : (
-                    (lessonsByChapter[ch.id] ?? []).map((lesson) => {
-                      const alreadyAdded = existingLessonIds.includes(lesson.id);
+                    (chaptersByCourse[co.id] ?? []).map((chapter) => {
+                      const alreadyAdded = existingChapterIds.includes(chapter.id);
                       return (
                         <li
-                          key={lesson.id}
+                          key={chapter.id}
                           className="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50"
                         >
                           <span className="flex-1 text-sm text-gray-700 truncate">
-                            {lesson.title}
+                            {chapter.title}
                           </span>
                           {alreadyAdded ? (
                             <span className="text-xs text-gray-400">已添加</span>
                           ) : (
                             <button
-                              onClick={() => handleAdd(lesson.id)}
-                              disabled={adding === lesson.id}
+                              onClick={() => handleAdd(chapter.id)}
+                              disabled={adding === chapter.id}
                               className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-3 py-1 rounded-lg disabled:opacity-50"
                             >
-                              {adding === lesson.id ? "添加中..." : "+ 添加"}
+                              {adding === chapter.id ? "添加中..." : "+ 添加"}
                             </button>
                           )}
                         </li>

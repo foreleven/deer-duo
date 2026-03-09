@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Bindings } from "../lib/bindings";
-import { login, getMe, logout } from "../controllers/authController";
+import { login, getMe, logout } from "../controllers/auth.controller";
 
 const auth = new Hono<{ Bindings: Bindings }>();
 
