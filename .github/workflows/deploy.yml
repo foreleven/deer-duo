@@ -32,6 +32,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: d1 migrations apply deer-duo --remote
+
       - name: Deploy Preview (PR)
         id: deploy
         if: github.event_name == 'pull_request'
