@@ -7,7 +7,7 @@ export async function getChapters(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.json({ error: "未登录" }, 401);
 
   const { results } = await c.env.DB.prepare(
-    "SELECT id, course_id, title, content, sort_order, created_at FROM chapters WHERE course_id = ? ORDER BY sort_order ASC, id ASC",
+    "SELECT id, course_id, title, sort_order, created_at FROM chapters WHERE course_id = ? ORDER BY sort_order ASC, id ASC",
   )
     .bind(c.req.param("courseId"))
     .all();

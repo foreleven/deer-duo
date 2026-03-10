@@ -1,13 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import type { Subject, Course, Chapter } from "../../types";
+import { ChapterEditorPanel } from "./ChapterEditor";
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CourseManagement() {
   const navigate = useNavigate();
-  const { courseId: courseIdParam } = useParams<{ courseId: string }>();
-  const urlCourseId = courseIdParam ? parseInt(courseIdParam, 10) : null;
+  const location = useLocation();
+  const { courseId: courseIdParam, chapterId: chapterIdParam } = useParams<{ courseId: string; chapterId: string }>();
+
+  // Guard against malformed URL params (e.g. /admin/courses/foo)
+  const parsedCourseId = courseIdParam ? parseInt(courseIdParam, 10) : NaN;
+  const urlCourseId = Number.isFinite(parsedCourseId) ? parsedCourseId : null;
+
+  // Detect chapter editor routes
+  const isOnNewChapterRoute = location.pathname.endsWith("/chapters/new");
+  const showChapterEditor = isOnNewChapterRoute || chapterIdParam !== undefined;
+
+  // Capture initial courseId for deep-link subject resolution (runs once on mount)
+  const initialUrlCourseIdRef = useRef<number | null>(urlCourseId);
 
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activeSubjectId, setActiveSubjectId] = useState<number | null>(null);
@@ -21,18 +33,41 @@ export default function CourseManagement() {
   const [showImport, setShowImport] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(urlCourseId !== null);
 
-  // Load subjects
+  // Load subjects (and resolve correct active subject for deep-linked courseId)
   useEffect(() => {
-    fetch("/api/subjects")
-      .then(async (r) => {
+    let mounted = true;
+    const init = async () => {
+      try {
+        const r = await fetch("/api/subjects");
+        if (!mounted) return;
         const data = (await r.json()) as { subjects?: Subject[]; error?: string };
         if (!r.ok) { setError(data.error ?? "加载学科失败"); return; }
         const list = data.subjects ?? [];
+        if (!mounted) return;
         setSubjects(list);
-        if (list.length) setActiveSubjectId(list[0].id);
-      })
-      .catch(() => setError("加载学科失败"))
-      .finally(() => setLoading(false));
+        if (!list.length) return;
+
+        // When deep-linking to a specific course, resolve which subject it belongs to
+        let targetSubjectId = list[0].id;
+        const initCourseId = initialUrlCourseIdRef.current;
+        if (initCourseId) {
+          const cr = await fetch(`/api/courses/${initCourseId}`).catch(() => null);
+          if (cr?.ok && mounted) {
+            const cd = (await cr.json()) as { course?: { subject_id: number } };
+            if (cd.course?.subject_id && list.some((s) => s.id === cd.course!.subject_id)) {
+              targetSubjectId = cd.course.subject_id;
+            }
+          }
+        }
+        if (mounted) setActiveSubjectId(targetSubjectId);
+      } catch {
+        if (mounted) setError("加载学科失败");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    init();
+    return () => { mounted = false; };
   }, []);
 
   const loadCourses = useCallback((subjectId: number, keepSelected?: number | null) => {
@@ -213,8 +248,8 @@ export default function CourseManagement() {
           </div>
         </aside>
 
-        {/* ── Right Panel: Chapter List ── */}
-        <main className={`overflow-y-auto bg-white md:flex md:flex-col md:flex-1 ${showMobileDetail ? "flex flex-col flex-1" : "hidden"}`}>
+        {/* ── Right Panel: Chapter List or Chapter Editor ── */}
+        <main className={`bg-white md:flex md:flex-col md:flex-1 ${showMobileDetail ? "flex flex-col flex-1" : "hidden"}`}>
           {/* Mobile back button */}
           <div className="md:hidden flex items-center px-4 py-2 border-b border-gray-100 shrink-0">
             <button
@@ -224,13 +259,37 @@ export default function CourseManagement() {
               ← 课程列表
             </button>
           </div>
-          {!selectedCourse ? (
+
+          {showChapterEditor && urlCourseId ? (
+            /* ── Chapter Editor Panel ── */
+            <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              {/* Panel header */}
+              <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-white shrink-0">
+                <button
+                  onClick={() => { loadChapters(urlCourseId); navigate(`/admin/courses/${urlCourseId}`); }}
+                  className="text-gray-400 hover:text-gray-600 transition-colors text-sm"
+                >
+                  ← 返回章节列表
+                </button>
+                <h3 className="text-base font-semibold text-gray-900">
+                  {isOnNewChapterRoute ? "新增章节" : "编辑章节"}
+                </h3>
+              </div>
+              <div className="flex flex-col flex-1 min-h-0 overflow-y-auto p-6">
+                <ChapterEditorPanel
+                  courseId={urlCourseId}
+                  chapterId={chapterIdParam}
+                  onCancel={() => { loadChapters(urlCourseId); navigate(`/admin/courses/${urlCourseId}`); }}
+                />
+              </div>
+            </div>
+          ) : !selectedCourse ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
               <div className="text-4xl mb-3">📖</div>
               <p className="text-sm">从左侧选择课程查看章节</p>
             </div>
           ) : (
-            <div className="p-6 space-y-5">
+            <div className="overflow-y-auto p-6 space-y-5">
               {/* Course header */}
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-semibold text-gray-900">{selectedCourse.title}</h3>

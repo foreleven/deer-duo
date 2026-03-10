@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { Chapter } from "../../types";
 
 // ── Simple Markdown Editor ─────────────────────────────────────────────────────
@@ -16,7 +16,15 @@ function MarkdownEditor({
 
   // Render markdown as HTML using basic rules
   function renderMarkdown(md: string): string {
-    return md
+    // Wrap consecutive <li> items in <ul>/<ol> for valid HTML
+    // Process unordered first (they use plain <li>), then ordered (<li data-ol>)
+    function wrapLists(html: string): string {
+      return html
+        .replace(/(<li>.*?<\/li>(\n|$))+/g, (m) => `<ul>${m}</ul>`)
+        .replace(/(<li data-ol>.*?<\/li>(\n|$))+/g, (m) => `<ol>${m.replace(/ data-ol/g, "")}</ol>`);
+    }
+
+    const html = md
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -34,14 +42,15 @@ function MarkdownEditor({
       .replace(/`([^`]+)`/g, "<code>$1</code>")
       // horizontal rule
       .replace(/^---$/gm, "<hr/>")
+      // ordered list items (mark with data-ol to distinguish from unordered)
+      .replace(/^\d+\. (.+)$/gm, "<li data-ol>$1</li>")
       // unordered list items
       .replace(/^[-*] (.+)$/gm, "<li>$1</li>")
-      // ordered list items
-      .replace(/^\d+\. (.+)$/gm, "<li>$1</li>")
       // blockquote
-      .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>")
-      // line breaks – double newline → paragraph break
-      .replace(/\n\n/g, "</div><div>")
+      .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+
+    return wrapLists(html)
+      .replace(/\n\n/g, "</p><p>")
       .replace(/\n/g, "<br/>");
   }
 
@@ -92,7 +101,7 @@ function MarkdownEditor({
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{
             __html: value.trim()
-              ? `<div>${renderMarkdown(value)}</div>`
+              ? `<p>${renderMarkdown(value)}</p>`
               : '<p class="text-gray-400 italic">（暂无内容）</p>',
           }}
         />
@@ -101,31 +110,42 @@ function MarkdownEditor({
   );
 }
 
-// ── Chapter Editor Page ───────────────────────────────────────────────────────
+// ── Chapter Editor Panel (embeddable, no page header) ─────────────────────────
 
-export default function ChapterEditor() {
+export function ChapterEditorPanel({
+  courseId,
+  chapterId,
+  onCancel,
+}: {
+  courseId: number;
+  chapterId?: string; // undefined = new chapter
+  onCancel: () => void;
+}) {
   const navigate = useNavigate();
-  const { courseId, chapterId } = useParams<{ courseId: string; chapterId: string }>();
-
   const isNew = chapterId === undefined;
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState("");
 
-  // Load existing chapter for edit mode
+  // Reset form when switching between chapters
   useEffect(() => {
-    if (isNew || !chapterId) return;
+    setTitle("");
+    setContent("");
+    setError("");
+    setSavedOk(false);
+    if (isNew || !chapterId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     fetch(`/api/chapters/${chapterId}`)
       .then(async (r) => {
         const data = (await r.json()) as { chapter?: Chapter; error?: string };
-        if (!r.ok) {
-          setError(data.error ?? "加载章节失败");
-          return;
-        }
+        if (!r.ok) { setError(data.error ?? "加载章节失败"); return; }
         if (data.chapter) {
           setTitle(data.chapter.title);
           setContent(data.chapter.content ?? "");
@@ -137,11 +157,9 @@ export default function ChapterEditor() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim()) {
-      setError("章节名称不能为空");
-      return;
-    }
+    if (!title.trim()) { setError("章节名称不能为空"); return; }
     setError("");
+    setSavedOk(false);
     setSaving(true);
     try {
       let r: Response;
@@ -167,84 +185,73 @@ export default function ChapterEditor() {
 
       if (isNew) {
         const { chapter } = (await r.json()) as { chapter: Chapter };
-        // Navigate to the newly created chapter's edit page
         navigate(`/admin/courses/${courseId}/chapters/${chapter.id}`, { replace: true });
       } else {
-        // Stay on the page; optionally show a success indicator
-        setSaving(false);
+        setSavedOk(true);
+        setTimeout(() => setSavedOk(false), 2000);
       }
     } catch {
       setError("网络错误");
+    } finally {
       setSaving(false);
     }
   };
 
-  const backToCourse = () => navigate(`/admin/courses/${courseId}`);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-48">
+        <div className="w-6 h-6 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Header */}
-      <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-white shrink-0">
-        <button
-          onClick={backToCourse}
-          className="text-gray-400 hover:text-gray-600 transition-colors text-sm"
-        >
-          ← 返回课程
-        </button>
-        <h2 className="text-lg font-bold text-gray-900">
-          {isNew ? "新增章节" : "编辑章节"}
-        </h2>
-        {error && <span className="ml-auto text-sm text-red-500">{error}</span>}
+    <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0 gap-4">
+      {/* Title */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          章节标题 <span className="text-red-500">*</span>
+        </label>
+        <input
+          required
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="输入章节标题…"
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
       </div>
 
-      {/* Body */}
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      {/* Content (Markdown) */}
+      <div className="flex flex-col flex-1 min-h-0">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          章节正文
+        </label>
+        <MarkdownEditor value={content} onChange={setContent} />
+      </div>
+
+      {/* Status / Actions */}
+      <div className="flex items-center justify-between shrink-0 pt-1">
+        <div className="text-sm">
+          {error && <span className="text-red-500">{error}</span>}
+          {savedOk && <span className="text-emerald-600">✓ 已保存</span>}
         </div>
-      ) : (
-        <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0 p-6 gap-4">
-          {/* Title */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              章节标题 <span className="text-red-500">*</span>
-            </label>
-            <input
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="输入章节标题…"
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            />
-          </div>
-
-          {/* Content (Markdown) */}
-          <div className="flex flex-col flex-1 min-h-0">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              章节正文
-            </label>
-            <MarkdownEditor value={content} onChange={setContent} />
-          </div>
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={backToCourse}
-              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !title.trim()}
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl shadow-sm transition-colors"
-            >
-              {saving ? "保存中…" : "保存"}
-            </button>
-          </div>
-        </form>
-      )}
-    </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            取消
+          </button>
+          <button
+            type="submit"
+            disabled={saving || !title.trim()}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-medium rounded-xl shadow-sm transition-colors"
+          >
+            {saving ? "保存中…" : "保存"}
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }
