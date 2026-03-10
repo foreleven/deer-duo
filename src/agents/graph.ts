@@ -1,9 +1,9 @@
 import { Annotation, StateGraph, MessagesAnnotation } from "@langchain/langgraph";
-import { ChatAnthropic } from "@langchain/anthropic";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { AIMessage, HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createWebSearchTool } from "./tools/web_search_tool";
 import { createWebFetchTool } from "./tools/web_fetch_tool";
+import { createModel } from "./models";
 
 // ── State definition ──────────────────────────────────────────────────────────
 
@@ -17,10 +17,15 @@ const AgentState = Annotation.Root({
 // ── Graph options ─────────────────────────────────────────────────────────────
 
 export interface ChapterFetchOptions {
-  anthropicApiKey: string;
-  /** Optional custom Anthropic API gateway base URL */
+  /** Name of the model to use as declared in config.yaml */
+  modelName?: string;
+  /** Fallback API key if not resolved via config.yaml env references */
+  anthropicApiKey?: string;
+  /** Optional custom Anthropic API gateway base URL (fallback) */
   anthropicBaseUrl?: string;
   tavilyApiKey: string;
+  /** Full environment bindings for resolving "$VAR" references in config.yaml */
+  env?: Record<string, string | undefined>;
 }
 
 export interface ChapterFetchResult {
@@ -34,7 +39,7 @@ export interface ChapterFetchResult {
  * Create and invoke a LangGraph agent that:
  * 1. Searches the web for a given chapter/lesson title
  * 2. Fetches relevant page content
- * 3. Uses Claude to extract the lesson text and key knowledge points
+ * 3. Uses the configured model to extract the lesson text and key knowledge points
  */
 export async function fetchChapterFromWeb(
   title: string,
@@ -45,12 +50,15 @@ export async function fetchChapterFromWeb(
     createWebFetchTool(options.tavilyApiKey),
   ];
 
-  const model = new ChatAnthropic({
-    apiKey: options.anthropicApiKey,
-    ...(options.anthropicBaseUrl ? { anthropicApiUrl: options.anthropicBaseUrl } : {}),
-    model: "claude-3-5-haiku-20241022",
-    maxTokens: 4096,
-  }).bindTools(tools);
+  // Resolve model: prefer config.yaml lookup, fall back to direct Anthropic params
+  const env: Record<string, string | undefined> = options.env ?? {
+    ANTHROPIC_API_KEY: options.anthropicApiKey,
+    ANTHROPIC_BASE_URL: options.anthropicBaseUrl,
+  };
+
+  const modelName = options.modelName ?? "qwen3.5-plus";
+  const baseModel = createModel(modelName, env);
+  const model = baseModel.bindTools(tools);
 
   const toolNode = new ToolNode(tools);
 
@@ -79,13 +87,8 @@ export async function fetchChapterFromWeb(
       ? lastMessage.content
       : JSON.stringify(lastMessage.content);
 
-    // Parse structured output using a second Claude call
-    const extractModel = new ChatAnthropic({
-      apiKey: options.anthropicApiKey,
-      ...(options.anthropicBaseUrl ? { anthropicApiUrl: options.anthropicBaseUrl } : {}),
-      model: "claude-3-5-haiku-20241022",
-      maxTokens: 4096,
-    });
+    // Parse structured output using a second model call
+    const extractModel = createModel(modelName, env);
 
     const extractPrompt = `你是一个内容整理助手。根据以下搜索和整理的内容，请输出两个部分：
 

@@ -27,8 +27,10 @@ export async function fetchChapterContent(c: Context<{ Bindings: Bindings }>) {
 
   try {
     const result = await fetchChapterFromWeb(title.trim(), {
-      anthropicApiKey: c.env.ANTHROPIC_API_KEY,
-      anthropicBaseUrl: c.env.ANTHROPIC_BASE_URL,
+      env: {
+        ANTHROPIC_API_KEY: c.env.ANTHROPIC_API_KEY,
+        ANTHROPIC_BASE_URL: c.env.ANTHROPIC_BASE_URL,
+      },
       tavilyApiKey: c.env.TAVILY_API_KEY,
     });
     return c.json(result);
