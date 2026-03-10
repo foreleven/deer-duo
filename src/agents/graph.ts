@@ -10,10 +10,11 @@ import { Agent } from "./base";
 
 const AgentState = Annotation.Root({
   ...MessagesAnnotation.spec,
-  // Final structured outputs
   chapterContent: Annotation<string>({ default: () => "", reducer: (_, v) => v }),
   knowledgePoints: Annotation<string>({ default: () => "", reducer: (_, v) => v }),
 });
+
+type ChapterFetchAgentState = typeof AgentState.State;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -28,12 +29,12 @@ export interface ChapterFetchResult {
  * LangGraph ReAct agent that searches the web for a chapter/lesson title and
  * returns structured lesson content and knowledge points.
  *
- * Flow: search → fetch → structured extraction via a second model call.
+ * Flow: agentNode (ReAct loop with tools) → extractNode (structured extraction)
  *
  * @example
  * ```ts
  * const agent = new ChapterFetchAgent("qwen3.5-plus", env, tavilyApiKey);
- * const result = await agent.run("观潮");
+ * const result = await agent.invoke("观潮");
  * // → { chapterContent: "...", knowledgePoints: "..." }
  * ```
  */
@@ -56,40 +57,36 @@ export class ChapterFetchAgent extends Agent<string, ChapterFetchResult> {
     ];
   }
 
-  async run(title: string): Promise<ChapterFetchResult> {
-    const tools = this.getTools();
+  // ── Node methods ────────────────────────────────────────────────────────────
+
+  protected async agentNode(
+    state: ChapterFetchAgentState,
+  ): Promise<Partial<ChapterFetchAgentState>> {
     const model = this.createModelWithTools();
-    const toolNode = new ToolNode(tools);
+    const response = await model.invoke(state.messages);
+    return { messages: [response] };
+  }
 
-    // ── Agent node ────────────────────────────────────────────────────────────
+  protected shouldContinue(state: ChapterFetchAgentState): "tools" | "extract" {
+    const lastMessage = state.messages[state.messages.length - 1];
+    if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
+      return "tools";
+    }
+    return "extract";
+  }
 
-    const callModel = async (state: typeof AgentState.State) => {
-      const response = await model.invoke(state.messages);
-      return { messages: [response] };
-    };
+  protected async extractNode(
+    state: ChapterFetchAgentState,
+  ): Promise<Partial<ChapterFetchAgentState>> {
+    const lastMessage = state.messages[state.messages.length - 1];
+    const rawText =
+      typeof lastMessage.content === "string"
+        ? lastMessage.content
+        : JSON.stringify(lastMessage.content);
 
-    // ── Router ────────────────────────────────────────────────────────────────
+    const extractModel = this.createModel();
 
-    const shouldContinue = (state: typeof AgentState.State) => {
-      const lastMessage = state.messages[state.messages.length - 1];
-      if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
-        return "tools";
-      }
-      return "extract";
-    };
-
-    // ── Extract node ──────────────────────────────────────────────────────────
-
-    const extractOutput = async (state: typeof AgentState.State) => {
-      const lastMessage = state.messages[state.messages.length - 1];
-      const rawText =
-        typeof lastMessage.content === "string"
-          ? lastMessage.content
-          : JSON.stringify(lastMessage.content);
-
-      const extractModel = this.createModel();
-
-      const extractPrompt = `你是一个内容整理助手。根据以下搜索和整理的内容，请输出两个部分：
+    const extractPrompt = `你是一个内容整理助手。根据以下搜索和整理的内容，请输出两个部分：
 
 原始内容：
 ${rawText}
@@ -100,47 +97,52 @@ ${rawText}
   "knowledgePoints": "知识点整理（包括生字词、主题思想、写作特色、修辞手法等，Markdown 格式）"
 }`;
 
-      const response = await extractModel.invoke(extractPrompt);
-      const text =
-        typeof response.content === "string"
-          ? response.content
-          : JSON.stringify(response.content);
+    const response = await extractModel.invoke(extractPrompt);
+    const text =
+      typeof response.content === "string"
+        ? response.content
+        : JSON.stringify(response.content);
 
-      // Extract JSON from response — find the outermost {...} block
-      const jsonStart = text.indexOf("{");
-      const jsonEnd = text.lastIndexOf("}");
-      if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-        return { chapterContent: rawText, knowledgePoints: "" };
-      }
-      const jsonMatch = text.slice(jsonStart, jsonEnd + 1);
+    const jsonStart = text.indexOf("{");
+    const jsonEnd = text.lastIndexOf("}");
+    if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
+      return { chapterContent: rawText, knowledgePoints: "" };
+    }
+    const jsonMatch = text.slice(jsonStart, jsonEnd + 1);
 
-      try {
-        const parsed = JSON.parse(jsonMatch) as {
-          chapterContent?: string;
-          knowledgePoints?: string;
-        };
-        return {
-          chapterContent: parsed.chapterContent ?? rawText,
-          knowledgePoints: parsed.knowledgePoints ?? "",
-        };
-      } catch {
-        return { chapterContent: rawText, knowledgePoints: "" };
-      }
-    };
+    try {
+      const parsed = JSON.parse(jsonMatch) as {
+        chapterContent?: string;
+        knowledgePoints?: string;
+      };
+      return {
+        chapterContent: parsed.chapterContent ?? rawText,
+        knowledgePoints: parsed.knowledgePoints ?? "",
+      };
+    } catch {
+      return { chapterContent: rawText, knowledgePoints: "" };
+    }
+  }
 
-    // ── Build and run graph ───────────────────────────────────────────────────
+  // ── buildGraph ──────────────────────────────────────────────────────────────
 
-    const workflow = new StateGraph(AgentState)
-      .addNode("agent", callModel)
+  protected override buildGraph() {
+    const toolNode = new ToolNode(this.getTools());
+
+    return new StateGraph(AgentState)
+      .addNode("agent", (state) => this.agentNode(state))
       .addNode("tools", toolNode)
-      .addNode("extract", extractOutput)
+      .addNode("extract", (state) => this.extractNode(state))
       .addEdge("__start__", "agent")
-      .addConditionalEdges("agent", shouldContinue)
+      .addConditionalEdges("agent", (state) => this.shouldContinue(state))
       .addEdge("tools", "agent")
-      .addEdge("extract", "__end__");
+      .addEdge("extract", "__end__")
+      .compile();
+  }
 
-    const graph = workflow.compile();
+  // ── buildInitialState ───────────────────────────────────────────────────────
 
+  protected override buildInitialState(title: string): Record<string, unknown> {
     const systemPrompt = `你是一个教育内容整理助手，专门帮助整理中小学课文和知识点。
 你的任务是根据给定的课文/章节标题，从互联网上搜索并获取：
 1. 课文正文内容（完整原文）
@@ -154,16 +156,20 @@ ${rawText}
 2. 如需要，抓取相关页面获取完整内容
 3. 整理输出：课文正文 + 知识点（生字词、主题思想、写作手法等）`;
 
-    const finalState = await graph.invoke({
+    return {
       messages: [
         new SystemMessage(systemPrompt),
         new HumanMessage(userPrompt),
       ],
-    });
+    };
+  }
 
+  // ── extractOutput ───────────────────────────────────────────────────────────
+
+  protected override extractOutput(state: Record<string, unknown>): ChapterFetchResult {
     return {
-      chapterContent: finalState.chapterContent,
-      knowledgePoints: finalState.knowledgePoints,
+      chapterContent: (state.chapterContent as string) ?? "",
+      knowledgePoints: (state.knowledgePoints as string) ?? "",
     };
   }
 }
@@ -200,5 +206,5 @@ export async function fetchChapterFromWeb(
     env,
     options.tavilyApiKey,
   );
-  return agent.run(title);
+  return agent.invoke(title);
 }

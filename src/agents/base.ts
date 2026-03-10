@@ -1,26 +1,45 @@
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { StructuredTool } from "@langchain/core/tools";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+import type { CompiledStateGraph } from "@langchain/langgraph";
 import { createModel, type CreateModelOptions } from "./models";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyCompiledGraph = CompiledStateGraph<any, any, any, any, any, any>;
 
 // ── Abstract Agent ────────────────────────────────────────────────────────────
 
 /**
  * Base class for all LangGraph agents in this project.
  *
- * Subclasses must implement `run(input)` and may override `getTools()` to
- * supply the tool list used for the ReAct loop.
+ * Subclasses must implement three abstract methods:
+ * - `buildGraph()` — construct and compile the StateGraph with all nodes/edges.
+ *   Node implementations should be defined as class methods and wired in here.
+ * - `buildInitialState(input)` — convert the typed input to the graph's initial state.
+ * - `extractOutput(state)` — extract the typed result from the final graph state.
  *
- * @template TInput  The type of the single input value passed to `run()`.
- * @template TOutput The type of the structured result returned by `run()`.
+ * The base class provides a default `invoke()` that wires all three together.
+ *
+ * @template TInput  The type passed to `invoke()`.
+ * @template TOutput The type returned by `invoke()`.
  *
  * @example
  * ```ts
  * class MyAgent extends Agent<string, { summary: string }> {
- *   protected getTools() { return [createWebSearchTool(this.tavilyApiKey)]; }
- *   async run(query: string) { ... }
+ *   protected agentNode(state) { ... }          // node method
+ *   protected buildGraph() {
+ *     return new StateGraph(MyState)
+ *       .addNode("agent", (s) => this.agentNode(s))
+ *       .addEdge("__start__", "agent")
+ *       .addEdge("agent", "__end__")
+ *       .compile();
+ *   }
+ *   protected buildInitialState(query) { return { messages: [new HumanMessage(query)] }; }
+ *   protected extractOutput(state) { return { summary: state.messages.at(-1)?.content }; }
  * }
- * const agent = new MyAgent("qwen3.5-plus", env);
- * const result = await agent.run("some query");
+ * const result = await new MyAgent("qwen3.5-plus", env).invoke("some query");
  * ```
  */
 export abstract class Agent<TInput, TOutput> {
@@ -42,16 +61,14 @@ export abstract class Agent<TInput, TOutput> {
 
   /**
    * Instantiate the configured model, optionally with thinking enabled.
-   * The model is created fresh on each call (not cached) so that callers can
-   * bind different tool sets to separate instances.
+   * Created fresh on each call so callers can bind different tool sets.
    */
   protected createModel(opts?: CreateModelOptions): BaseChatModel {
     return createModel(this.modelName, this.env, opts);
   }
 
   /**
-   * Instantiate the configured model and bind the tools returned by
-   * `getTools()` to it.
+   * Instantiate the configured model with tools from `getTools()` pre-bound.
    */
   protected createModelWithTools(opts?: CreateModelOptions): ReturnType<BaseChatModel["bindTools"]> {
     return this.createModel(opts).bindTools(this.getTools());
@@ -67,12 +84,39 @@ export abstract class Agent<TInput, TOutput> {
     return [];
   }
 
-  // ── Entry point ─────────────────────────────────────────────────────────────
+  // ── Abstract methods ────────────────────────────────────────────────────────
 
   /**
-   * Execute the agent and return a structured result.
+   * Build and compile the LangGraph StateGraph.
    *
-   * @param input  Agent-specific input (e.g. a search title, a question, …)
+   * Define all nodes (as class methods), edges, and conditional routing here,
+   * then return the compiled graph.
    */
-  abstract run(input: TInput): Promise<TOutput>;
+  protected abstract buildGraph(): AnyCompiledGraph;
+
+  /**
+   * Convert the typed input into the graph's initial state object.
+   */
+  protected abstract buildInitialState(input: TInput): Record<string, unknown>;
+
+  /**
+   * Extract the typed result from the final graph state.
+   */
+  protected abstract extractOutput(state: Record<string, unknown>): TOutput;
+
+  // ── Default invoke ──────────────────────────────────────────────────────────
+
+  /**
+   * Execute the agent:
+   *  1. `buildGraph()` — compile the StateGraph
+   *  2. invoke it with `buildInitialState(input)`
+   *  3. return `extractOutput(finalState)`
+   */
+  async invoke(input: TInput): Promise<TOutput> {
+    const graph = this.buildGraph();
+    const initialState = this.buildInitialState(input);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const finalState = await graph.invoke(initialState);
+    return this.extractOutput(finalState as Record<string, unknown>);
+  }
 }
