@@ -250,15 +250,17 @@ export default function CourseManagement() {
 
         {/* ── Right Panel: Chapter List or Chapter Editor ── */}
         <main className={`bg-white md:flex md:flex-col md:flex-1 ${showMobileDetail ? "flex flex-col flex-1" : "hidden"}`}>
-          {/* Mobile back button */}
-          <div className="md:hidden flex items-center px-4 py-2 border-b border-gray-100 shrink-0">
-            <button
-              onClick={() => navigate("/admin/courses")}
-              className="text-gray-500 hover:text-gray-700 text-sm"
-            >
-              ← 课程列表
-            </button>
-          </div>
+          {/* Mobile back button – hidden when chapter editor is open to avoid stacking three nav rows */}
+          {!showChapterEditor && (
+            <div className="md:hidden flex items-center px-4 py-2 border-b border-gray-100 shrink-0">
+              <button
+                onClick={() => navigate("/admin/courses")}
+                className="text-gray-500 hover:text-gray-700 text-sm"
+              >
+                ← 课程列表
+              </button>
+            </div>
+          )}
 
           {showChapterEditor && urlCourseId ? (
             /* ── Chapter Editor Panel ── */
