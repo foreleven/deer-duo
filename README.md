@@ -20,7 +20,6 @@
 - ✅ 用户登录（JWT Cookie 认证）
 - ✅ 内置 `admin` 管理员账号（无需注册）
 - ✅ GitHub Actions CI/CD：PR 自动 preview 部署，`main` 分支自动部署到 Cloudflare Workers
-- ✅ 自定义域名：https://duo.process.tech
 
 ## 本地开发
 
