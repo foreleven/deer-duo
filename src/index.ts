@@ -8,6 +8,7 @@ import courses from "./routes/courses";
 import chapters from "./routes/chapters";
 import studyRecords from "./routes/studyRecords";
 import tasks from "./routes/tasks";
+import agents from "./routes/agents";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -27,6 +28,7 @@ app.route("/api/courses", courses);
 app.route("/api/chapters", chapters);
 app.route("/api/study-records", studyRecords);
 app.route("/api/tasks", tasks);
+app.route("/api/agents", agents);
 
 // ── SPA / Asset Fallback ───────────────────────────────────────────────────────
 

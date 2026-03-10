@@ -2,6 +2,22 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Chapter } from "../../types";
 
+// ── Agent fetch helper ─────────────────────────────────────────────────────────
+
+async function fetchChapterFromAgent(title: string): Promise<{ chapterContent: string; knowledgePoints: string }> {
+  const r = await fetch("/api/agents/fetch-chapter", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  const data = (await r.json()) as { chapterContent?: string; knowledgePoints?: string; error?: string };
+  if (!r.ok) throw new Error(data.error ?? "获取失败");
+  return {
+    chapterContent: data.chapterContent ?? "",
+    knowledgePoints: data.knowledgePoints ?? "",
+  };
+}
+
 // ── Simple Markdown Editor ─────────────────────────────────────────────────────
 
 function MarkdownEditor({
@@ -126,8 +142,10 @@ export function ChapterEditorPanel({
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [knowledgePoints, setKnowledgePoints] = useState("");
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [fetching, setFetching] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
   const [error, setError] = useState("");
 
@@ -135,6 +153,7 @@ export function ChapterEditorPanel({
   useEffect(() => {
     setTitle("");
     setContent("");
+    setKnowledgePoints("");
     setError("");
     setSavedOk(false);
     if (isNew || !chapterId) {
@@ -149,6 +168,7 @@ export function ChapterEditorPanel({
         if (data.chapter) {
           setTitle(data.chapter.title);
           setContent(data.chapter.content ?? "");
+          setKnowledgePoints(data.chapter.knowledge_points ?? "");
         }
       })
       .catch(() => setError("加载章节失败"))
@@ -167,13 +187,13 @@ export function ChapterEditorPanel({
         r = await fetch(`/api/courses/${courseId}/chapters`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title.trim(), content: content || null }),
+          body: JSON.stringify({ title: title.trim(), content: content || null, knowledge_points: knowledgePoints || null }),
         });
       } else {
         r = await fetch(`/api/chapters/${chapterId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title.trim(), content: content || null }),
+          body: JSON.stringify({ title: title.trim(), content: content || null, knowledge_points: knowledgePoints || null }),
         });
       }
 
@@ -197,6 +217,21 @@ export function ChapterEditorPanel({
     }
   };
 
+  const handleFetchFromWeb = async () => {
+    if (!title.trim()) { setError("请先输入章节标题"); return; }
+    setError("");
+    setFetching(true);
+    try {
+      const result = await fetchChapterFromAgent(title.trim());
+      if (result.chapterContent) setContent(result.chapterContent);
+      if (result.knowledgePoints) setKnowledgePoints(result.knowledgePoints);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "获取内容失败");
+    } finally {
+      setFetching(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-48">
@@ -212,13 +247,24 @@ export function ChapterEditorPanel({
         <label className="block text-sm font-medium text-gray-700 mb-1">
           章节标题 <span className="text-red-500">*</span>
         </label>
-        <input
-          required
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="输入章节标题…"
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-        />
+        <div className="flex gap-2">
+          <input
+            required
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="输入章节标题…"
+            className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          />
+          <button
+            type="button"
+            disabled={fetching || !title.trim()}
+            onClick={handleFetchFromWeb}
+            className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors whitespace-nowrap"
+            title="从互联网获取课文正文和知识点"
+          >
+            {fetching ? "获取中…" : "从互联网获取"}
+          </button>
+        </div>
       </div>
 
       {/* Content (Markdown) */}
@@ -227,6 +273,20 @@ export function ChapterEditorPanel({
           章节正文
         </label>
         <MarkdownEditor value={content} onChange={setContent} />
+      </div>
+
+      {/* Knowledge Points */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          知识点
+        </label>
+        <textarea
+          value={knowledgePoints}
+          onChange={(e) => setKnowledgePoints(e.target.value)}
+          placeholder="输入知识点（生字词、主题思想、写作特色等，支持 Markdown）…"
+          rows={6}
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm font-mono resize-y focus:outline-none focus:ring-2 focus:ring-indigo-400"
+        />
       </div>
 
       {/* Status / Actions */}

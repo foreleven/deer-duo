@@ -24,6 +24,7 @@ export type Chapter = {
   course_id: number;
   title: string;
   content?: string | null;
+  knowledge_points?: string | null;
   sort_order: number;
   created_at: string;
 };
