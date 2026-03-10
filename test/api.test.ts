@@ -297,18 +297,17 @@ describe("Chapters", () => {
 
 describe("Chapter File Upload", () => {
   it("POST /api/courses/:courseId/chapters/upload — 401 without auth", async () => {
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"], { type: "application/pdf" }), "test.pdf");
+    // Do NOT send a body — auth check returns 401 before formData is read,
+    // and workerd does not drain unread request bodies on keep-alive connections.
     const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters/upload`, {
       method: "POST",
-      body: formData,
     });
     await res.text();
     expect(res.status).toBe(401);
   });
 
   it("POST /api/courses/:courseId/chapters/upload — user gets 403", async () => {
-    // Do NOT send a body here — the 403 is returned before formData is read,
+    // Do NOT send a body — auth check returns 403 before formData is read,
     // and workerd does not drain unread request bodies on keep-alive connections.
     const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters/upload`, {
       method: "POST",
