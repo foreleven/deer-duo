@@ -293,7 +293,67 @@ describe("Chapters", () => {
   });
 });
 
-// ─── Course Import ────────────────────────────────────────────────────────────
+// ─── Chapter File Upload ──────────────────────────────────────────────────────
+
+describe("Chapter File Upload", () => {
+  it("POST /api/courses/:courseId/chapters/upload — 401 without auth", async () => {
+    // Do NOT send a body — auth check returns 401 before formData is read,
+    // and workerd does not drain unread request bodies on keep-alive connections.
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters/upload`, {
+      method: "POST",
+    });
+    await res.text();
+    expect(res.status).toBe(401);
+  });
+
+  it("POST /api/courses/:courseId/chapters/upload — user gets 403", async () => {
+    // Do NOT send a body — auth check returns 403 before formData is read,
+    // and workerd does not drain unread request bodies on keep-alive connections.
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters/upload`, {
+      method: "POST",
+      headers: { Cookie: userCookie },
+    });
+    await res.text();
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /api/courses/:courseId/chapters/upload — missing file returns 400", async () => {
+    const formData = new FormData();
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters/upload`, {
+      method: "POST",
+      headers: { Cookie: adminCookie },
+      body: formData,
+    });
+    const data = (await res.json()) as { error: string };
+    expect(res.status).toBe(400);
+    expect(data.error).toMatch(/请上传文件/);
+  });
+
+  it("POST /api/courses/:courseId/chapters/upload — unsupported file type returns 400", async () => {
+    const formData = new FormData();
+    formData.append("file", new Blob(["test"], { type: "text/plain" }), "test.txt");
+    const res = await fetch(`${BASE_URL}/api/courses/${testCourseId}/chapters/upload`, {
+      method: "POST",
+      headers: { Cookie: adminCookie },
+      body: formData,
+    });
+    const data = (await res.json()) as { error: string };
+    expect(res.status).toBe(400);
+    expect(data.error).toMatch(/PDF|Word/);
+  });
+
+  it("POST /api/courses/:courseId/chapters/upload — non-existent course returns 404", async () => {
+    // Do NOT send a body — the course-existence check returns 404 before formData
+    // is read, and workerd does not drain unread request bodies on keep-alive connections.
+    const res = await fetch(`${BASE_URL}/api/courses/999999/chapters/upload`, {
+      method: "POST",
+      headers: { Cookie: adminCookie },
+    });
+    const data = (await res.json()) as { error: string };
+    expect(res.status).toBe(404);
+    expect(data.error).toMatch(/课程不存在/);
+  });
+});
 
 describe("Course Import", () => {
   it("POST /api/subjects/:subjectId/import — 401 without auth", async () => {

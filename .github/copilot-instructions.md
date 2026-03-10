@@ -66,6 +66,37 @@
 - **批量导入**：提供 JSON 粘贴区域，附带格式说明和示例；导入结果内联展示，不弹窗。
 - **输入框样式**：`px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400`，Markdown 内容区增加 `font-mono resize-y`。
 
+## 测试规范
+
+### 提交前必须验证本地测试通过
+
+**在提交任何代码前，必须先在本地运行完整的 API 测试套件，确认全部通过后才能提交。** 步骤如下：
+
+```bash
+# 1. 构建
+npm run build
+
+# 2. 应用本地迁移
+npx wrangler d1 migrations apply deer-duo --local
+
+# 3. 写入测试密钥
+printf 'JWT_SECRET=test-secret-key-for-ci\n' > .dev.vars
+
+# 4. 后台启动 wrangler dev（需用 detach 方式以保持进程运行）
+nohup npx wrangler dev --local --port 8787 > /tmp/wrangler.log 2>&1 &
+
+# 5. 等待就绪后运行测试
+TEST_BASE_URL=http://localhost:8787 npm test
+```
+
+### API 测试中的 FormData/请求体注意事项
+
+**对于会在读取请求体之前就提前返回响应的端点（如 401/403/404），测试时禁止发送请求体（FormData、JSON 等）。** 因为 workerd 不会在 keep-alive 连接上主动排空未读取的请求体，导致后续测试读取到脏数据而失败。
+
+受影响的典型场景：
+- 鉴权检查（401/403）在 `c.req.formData()` / `c.req.json()` 之前返回
+- 资源不存在检查（404）在读取请求体之前返回
+
 ## PR 提交要求
 
 **完成开发后，若 PR 涉及 UI 变更，提交 Pull Request 时必须在 PR 描述中附上相关页面的截图。**
