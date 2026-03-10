@@ -259,15 +259,64 @@ describe("Chapters", () => {
     expect(data.chapters.some((ch) => Number(ch.id) === testChapterId)).toBe(true);
   });
 
-  it("PUT /api/chapters/:id — admin can update chapter title", async () => {
+  it("GET /api/chapters/:id — 401 without auth", async () => {
+    const res = await fetch(`${BASE_URL}/api/chapters/${testChapterId}`);
+    await res.text();
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /api/chapters/:id — returns chapter with content field", async () => {
     const res = await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
+      headers: { Cookie: userCookie },
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { chapter: { id: number; title: string; content: string | null } };
+    expect(Number(data.chapter.id)).toBe(testChapterId);
+    expect(typeof data.chapter.title).toBe("string");
+    expect("content" in data.chapter).toBe(true);
+  });
+
+  it("GET /api/chapters/:id — 404 for nonexistent chapter", async () => {
+    const res = await fetch(`${BASE_URL}/api/chapters/99999999`, {
+      headers: { Cookie: userCookie },
+    });
+    await res.text();
+    expect(res.status).toBe(404);
+  });
+
+  it("PUT /api/chapters/:id — admin can update chapter content", async () => {
+    const res = await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ content: "# 测试正文\n\n内容更新测试。" }),
+    });
+    expect(res.status).toBe(200);
+    const check = await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
+      headers: { Cookie: userCookie },
+    });
+    const cd = (await check.json()) as { chapter: { content: string | null } };
+    expect(cd.chapter.content).toBe("# 测试正文\n\n内容更新测试。");
+  });
+
+  it("PUT /api/chapters/:id — title-only update preserves content", async () => {
+    // First set content
+    await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Cookie: adminCookie },
+      body: JSON.stringify({ content: "保留内容" }),
+    });
+    // Update title only
+    await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json", Cookie: adminCookie },
       body: JSON.stringify({ title: "第一单元·已更新" }),
     });
-    expect(res.status).toBe(200);
-    const data = (await res.json()) as { ok: boolean };
-    expect(data.ok).toBe(true);
+    const check = await fetch(`${BASE_URL}/api/chapters/${testChapterId}`, {
+      headers: { Cookie: userCookie },
+    });
+    const cd = (await check.json()) as { chapter: { title: string; content: string | null } };
+    expect(cd.chapter.title).toBe("第一单元·已更新");
+    expect(cd.chapter.content).toBe("保留内容");
   });
 
   it("DELETE /api/chapters/:id — user gets 403", async () => {

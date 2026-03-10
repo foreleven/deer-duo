@@ -2,6 +2,20 @@ import type { Context } from "hono";
 import type { Bindings } from "../lib/bindings";
 import { requireLogin } from "../lib/auth";
 
+export async function getCourse(c: Context<{ Bindings: Bindings }>) {
+  const user = await requireLogin(c);
+  if (!user) return c.json({ error: "未登录" }, 401);
+
+  const course = await c.env.DB.prepare(
+    "SELECT id, subject_id, title, sort_order, created_at FROM courses WHERE id = ?",
+  )
+    .bind(c.req.param("id"))
+    .first();
+
+  if (!course) return c.json({ error: "课程不存在" }, 404);
+  return c.json({ course });
+}
+
 export async function getCourses(c: Context<{ Bindings: Bindings }>) {
   const user = await requireLogin(c);
   if (!user) return c.json({ error: "未登录" }, 401);

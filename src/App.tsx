@@ -65,7 +65,12 @@ export default function App() {
               <Route path="/study" element={<TodayStudy />} />
               <Route path="/study/:recordId" element={<LessonDetail />} />
               {user.role === "admin" && (
-                <Route path="/admin/courses" element={<CourseManagement />} />
+                <>
+                  <Route path="/admin/courses" element={<CourseManagement />} />
+                  <Route path="/admin/courses/:courseId" element={<CourseManagement />} />
+                  <Route path="/admin/courses/:courseId/chapters/new" element={<CourseManagement />} />
+                  <Route path="/admin/courses/:courseId/chapters/:chapterId" element={<CourseManagement />} />
+                </>
               )}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

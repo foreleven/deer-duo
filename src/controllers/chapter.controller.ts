@@ -14,28 +14,41 @@ export async function getChapters(c: Context<{ Bindings: Bindings }>) {
   return c.json({ chapters: results });
 }
 
+export async function getChapter(c: Context<{ Bindings: Bindings }>) {
+  const user = await requireLogin(c);
+  if (!user) return c.json({ error: "未登录" }, 401);
+
+  const chapter = await c.env.DB.prepare(
+    "SELECT id, course_id, title, content, sort_order, created_at FROM chapters WHERE id = ?",
+  )
+    .bind(c.req.param("id"))
+    .first();
+  if (!chapter) return c.json({ error: "章节不存在" }, 404);
+  return c.json({ chapter });
+}
+
 export async function createChapter(c: Context<{ Bindings: Bindings }>) {
   const user = await requireLogin(c);
   if (!user) return c.json({ error: "未登录" }, 401);
   if (user.role !== "admin") return c.json({ error: "权限不足" }, 403);
 
-  let body: { title: string; sort_order?: number };
+  let body: { title: string; content?: string; sort_order?: number };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: "无效的请求体" }, 400);
   }
 
-  const { title, sort_order = 0 } = body;
+  const { title, content = null, sort_order = 0 } = body;
   if (!title?.trim()) return c.json({ error: "章节名称不能为空" }, 400);
 
   const result = await c.env.DB.prepare(
-    "INSERT INTO chapters (course_id, title, sort_order) VALUES (?, ?, ?)",
+    "INSERT INTO chapters (course_id, title, content, sort_order) VALUES (?, ?, ?, ?)",
   )
-    .bind(c.req.param("courseId"), title.trim(), sort_order)
+    .bind(c.req.param("courseId"), title.trim(), content, sort_order)
     .run();
 
-  return c.json({ chapter: { id: result.meta.last_row_id, title: title.trim(), sort_order } }, 201);
+  return c.json({ chapter: { id: result.meta.last_row_id, title: title.trim(), content, sort_order } }, 201);
 }
 
 export async function updateChapter(c: Context<{ Bindings: Bindings }>) {
@@ -43,7 +56,7 @@ export async function updateChapter(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.json({ error: "未登录" }, 401);
   if (user.role !== "admin") return c.json({ error: "权限不足" }, 403);
 
-  let body: { title?: string; sort_order?: number };
+  let body: { title?: string; content?: string | null; sort_order?: number };
   try {
     body = await c.req.json();
   } catch {
@@ -53,10 +66,29 @@ export async function updateChapter(c: Context<{ Bindings: Bindings }>) {
   const { title, sort_order } = body;
   if (title !== undefined && !title.trim()) return c.json({ error: "章节名称不能为空" }, 400);
 
+  const fields: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (title !== undefined) {
+    fields.push("title = ?");
+    params.push(title.trim());
+  }
+  if ("content" in body) {
+    fields.push("content = ?");
+    params.push(body.content ?? null);
+  }
+  if (sort_order !== undefined) {
+    fields.push("sort_order = ?");
+    params.push(sort_order);
+  }
+
+  if (fields.length === 0) return c.json({ ok: true });
+
+  params.push(c.req.param("id"));
   await c.env.DB.prepare(
-    "UPDATE chapters SET title = COALESCE(?, title), sort_order = COALESCE(?, sort_order) WHERE id = ?",
+    `UPDATE chapters SET ${fields.join(", ")} WHERE id = ?`,
   )
-    .bind(title?.trim() ?? null, sort_order ?? null, c.req.param("id"))
+    .bind(...params)
     .run();
 
   return c.json({ ok: true });
