@@ -783,6 +783,7 @@ function UploadChaptersPanel({
           type="button"
           onClick={handleClose}
           className="text-amber-400 hover:text-amber-600 text-lg leading-none"
+          aria-label="关闭导入面板"
         >
           ×
         </button>

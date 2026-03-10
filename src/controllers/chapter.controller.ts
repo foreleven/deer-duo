@@ -137,6 +137,7 @@ export async function uploadChaptersFromFile(c: Context<{ Bindings: Bindings }>)
   const userPrompt = `文档内容：\n${markdown.slice(0, MAX_MARKDOWN_LENGTH)}\n\n请提取章节标题列表，格式：[{"title":"第一章 ..."},{"title":"第二章 ..."}]`;
 
   let chapters: { title: string }[];
+  let responseText = "";
   try {
     const aiResponse = await c.env.AI.run("@cf/qwen/qwen3-30b-a3b-fp8", {
       messages: [
@@ -146,7 +147,6 @@ export async function uploadChaptersFromFile(c: Context<{ Bindings: Bindings }>)
     });
 
     // Extract text from response (handle both chat-completion and plain-text formats)
-    let responseText = "";
     if (typeof aiResponse === "string") {
       responseText = aiResponse;
     } else if (typeof aiResponse === "object" && aiResponse !== null) {
@@ -157,19 +157,24 @@ export async function uploadChaptersFromFile(c: Context<{ Bindings: Bindings }>)
     if (!responseText.trim()) {
       return c.json({ error: "AI 未返回有效内容" }, 502);
     }
-
-    // Extract first JSON array from the response (strip prose / code fences if any)
-    const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) {
-      return c.json({ error: "AI 无法识别文档章节结构" }, 422);
-    }
-
-    chapters = JSON.parse(jsonMatch[0]) as { title: string }[];
-    if (!Array.isArray(chapters) || chapters.length === 0) {
-      return c.json({ error: "未能从文档中提取到章节信息" }, 422);
-    }
   } catch {
-    return c.json({ error: "AI 解析失败，请稍后重试" }, 503);
+    return c.json({ error: "AI 请求失败，请稍后重试" }, 503);
+  }
+
+  // Extract first JSON array from the response (strip prose / code fences if any)
+  const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+  if (!jsonMatch) {
+    return c.json({ error: "AI 无法识别文档章节结构" }, 422);
+  }
+
+  try {
+    chapters = JSON.parse(jsonMatch[0]) as { title: string }[];
+  } catch {
+    return c.json({ error: "AI 返回格式无效，无法解析章节信息" }, 422);
+  }
+
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    return c.json({ error: "未能从文档中提取到章节信息" }, 422);
   }
 
   // Step 3: Insert extracted chapters into database
@@ -191,6 +196,10 @@ export async function uploadChaptersFromFile(c: Context<{ Bindings: Bindings }>)
       .run();
     created.push({ id: result.meta.last_row_id as number, title: ch.title.trim(), sort_order: sortOrder });
     sortOrder++;
+  }
+
+  if (created.length === 0) {
+    return c.json({ error: "未能从文档中提取到有效章节标题" }, 422);
   }
 
   return c.json({ ok: true, chapters: created }, 201);
