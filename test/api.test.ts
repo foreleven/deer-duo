@@ -343,12 +343,11 @@ describe("Chapter File Upload", () => {
   });
 
   it("POST /api/courses/:courseId/chapters/upload — non-existent course returns 404", async () => {
-    const formData = new FormData();
-    formData.append("file", new Blob(["test"], { type: "application/pdf" }), "test.pdf");
+    // Do NOT send a body — the course-existence check returns 404 before formData
+    // is read, and workerd does not drain unread request bodies on keep-alive connections.
     const res = await fetch(`${BASE_URL}/api/courses/999999/chapters/upload`, {
       method: "POST",
       headers: { Cookie: adminCookie },
-      body: formData,
     });
     const data = (await res.json()) as { error: string };
     expect(res.status).toBe(404);
