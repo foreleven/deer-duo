@@ -1,21 +1,25 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import type { Subject, Course, Chapter } from "../../types";
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function CourseManagement() {
   const navigate = useNavigate();
+  const { courseId: courseIdParam } = useParams<{ courseId: string }>();
+  const urlCourseId = courseIdParam ? parseInt(courseIdParam, 10) : null;
+
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [activeSubjectId, setActiveSubjectId] = useState<number | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(urlCourseId);
+  const selectedCourseIdForLoadRef = useRef<number | null>(urlCourseId);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [loading, setLoading] = useState(true);
   const [chaptersLoading, setChaptersLoading] = useState(false);
   const [error, setError] = useState("");
   const [showImport, setShowImport] = useState(false);
-  const [showMobileDetail, setShowMobileDetail] = useState(false);
+  const [showMobileDetail, setShowMobileDetail] = useState(urlCourseId !== null);
 
   // Load subjects
   useEffect(() => {
@@ -23,30 +27,37 @@ export default function CourseManagement() {
       .then(async (r) => {
         const data = (await r.json()) as { subjects?: Subject[]; error?: string };
         if (!r.ok) { setError(data.error ?? "加载学科失败"); return; }
-        const subjects = data.subjects ?? [];
-        setSubjects(subjects);
-        if (subjects.length) setActiveSubjectId(subjects[0].id);
+        const list = data.subjects ?? [];
+        setSubjects(list);
+        if (list.length) setActiveSubjectId(list[0].id);
       })
       .catch(() => setError("加载学科失败"))
       .finally(() => setLoading(false));
   }, []);
 
-  const loadCourses = useCallback((subjectId: number) => {
+  const loadCourses = useCallback((subjectId: number, keepSelected?: number | null) => {
     fetch(`/api/subjects/${subjectId}/courses`)
       .then(async (r) => {
         const data = (await r.json()) as { courses?: Course[]; error?: string };
         if (!r.ok) { setError(data.error ?? "加载课程失败"); return; }
         setError("");
-        setCourses(data.courses ?? []);
-        setSelectedCourseId(null);
-        setChapters([]);
-        setShowMobileDetail(false);
+        const list = data.courses ?? [];
+        setCourses(list);
+        // Preserve selected course if still in list
+        if (keepSelected !== undefined) {
+          const still = keepSelected !== null && list.some((c) => c.id === keepSelected);
+          if (!still) {
+            setSelectedCourseId(null);
+            setChapters([]);
+            setShowMobileDetail(false);
+          }
+        }
       })
       .catch(() => setError("加载课程失败"));
   }, []);
 
   useEffect(() => {
-    if (activeSubjectId) loadCourses(activeSubjectId);
+    if (activeSubjectId) loadCourses(activeSubjectId, selectedCourseIdForLoadRef.current);
   }, [activeSubjectId, loadCourses]);
 
   const selectedCourseIdRef = useRef<number | null>(null);
@@ -68,19 +79,30 @@ export default function CourseManagement() {
       });
   }, []);
 
+  // Sync URL courseId → selected course + chapters
+  useEffect(() => {
+    if (urlCourseId !== null) {
+      setSelectedCourseId(urlCourseId);
+      selectedCourseIdForLoadRef.current = urlCourseId;
+      setShowMobileDetail(true);
+      loadChapters(urlCourseId);
+    } else {
+      setSelectedCourseId(null);
+      selectedCourseIdForLoadRef.current = null;
+      setChapters([]);
+      setShowMobileDetail(false);
+    }
+  }, [urlCourseId, loadChapters]);
+
   const handleSelectCourse = (courseId: number) => {
-    setSelectedCourseId(courseId);
-    loadChapters(courseId);
-    setShowMobileDetail(true);
+    navigate(`/admin/courses/${courseId}`);
   };
 
   const handleDeleteCourse = async (courseId: number, title: string) => {
     if (!confirm(`确认删除课程「${title}」及其下所有章节吗？`)) return;
     await fetch(`/api/courses/${courseId}`, { method: "DELETE" });
     if (selectedCourseId === courseId) {
-      setSelectedCourseId(null);
-      setChapters([]);
-      setShowMobileDetail(false);
+      navigate("/admin/courses", { replace: true });
     }
     if (activeSubjectId) loadCourses(activeSubjectId);
   };
@@ -196,7 +218,7 @@ export default function CourseManagement() {
           {/* Mobile back button */}
           <div className="md:hidden flex items-center px-4 py-2 border-b border-gray-100 shrink-0">
             <button
-              onClick={() => setShowMobileDetail(false)}
+              onClick={() => navigate("/admin/courses")}
               className="text-gray-500 hover:text-gray-700 text-sm"
             >
               ← 课程列表
@@ -215,12 +237,14 @@ export default function CourseManagement() {
                 <span className="text-xs text-gray-400">{chapters.length} 个章节</span>
               </div>
 
-              {/* Add chapter inline form */}
+              {/* Add chapter / upload actions */}
               <div className="flex flex-wrap gap-2">
-                <NewChapterInline
-                  courseId={selectedCourse.id}
-                  onSaved={(chapter) => setChapters((prev) => [...prev, chapter])}
-                />
+                <button
+                  onClick={() => navigate(`/admin/courses/${selectedCourse.id}/chapters/new`)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-sm transition-colors"
+                >
+                  <span className="text-base leading-none">+</span> 新增章节
+                </button>
                 <UploadChaptersPanel
                   courseId={selectedCourse.id}
                   onDone={(newChapters) => setChapters((prev) => [...prev, ...newChapters])}
@@ -233,13 +257,14 @@ export default function CourseManagement() {
                   <div className="w-6 h-6 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : chapters.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">暂无章节，点击上方「+ 新建章节」添加</p>
+                <p className="text-gray-400 text-sm text-center py-8">暂无章节，点击上方「+ 新增章节」添加</p>
               ) : (
                 <ul className="space-y-2">
                   {chapters.map((ch) => (
                     <ChapterRow
                       key={ch.id}
                       chapter={ch}
+                      courseId={selectedCourse.id}
                       onUpdated={() => selectedCourse && loadChapters(selectedCourse.id)}
                       onDelete={() => handleDeleteChapter(ch.id, ch.title)}
                     />
@@ -512,118 +537,20 @@ function ImportPanel({ subjectId, onDone }: { subjectId: number; onDone: () => v
   );
 }
 
-// ── New Chapter Inline Form ────────────────────────────────────────────────────
-
-function NewChapterInline({
-  courseId,
-  onSaved,
-}: {
-  courseId: number;
-  onSaved: (chapter: Chapter) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const titleRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) titleRef.current?.focus();
-  }, [open]);
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setError("");
-    setSaving(true);
-    try {
-      const r = await fetch(`/api/courses/${courseId}/chapters`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim() }),
-      });
-      if (!r.ok) {
-        const d = (await r.json()) as { error?: string };
-        setError(d.error ?? "保存失败");
-        return;
-      }
-      const { chapter } = (await r.json()) as { chapter: Chapter };
-      onSaved(chapter);
-      setTitle("");
-      setOpen(false);
-    } catch {
-      setError("网络错误");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl shadow-sm transition-colors"
-      >
-        <span className="text-base leading-none">+</span> 新建章节
-      </button>
-    );
-  }
-
-  return (
-    <form
-      onSubmit={handleSave}
-      className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 space-y-3"
-    >
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-sm font-semibold text-indigo-800">新建章节</span>
-        <button
-          type="button"
-          onClick={() => { setOpen(false); setError(""); }}
-          className="text-indigo-400 hover:text-indigo-600 text-lg leading-none"
-        >
-          ×
-        </button>
-      </div>
-      <input
-        ref={titleRef}
-        required
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="章节名称 *"
-        className="w-full px-3 py-2 border border-indigo-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
-      />
-      {error && <p className="text-red-500 text-xs">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => { setOpen(false); setError(""); }}
-          className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5"
-        >
-          取消
-        </button>
-        <button
-          type="submit"
-          disabled={saving || !title.trim()}
-          className="text-sm bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg font-medium transition-colors"
-        >
-          {saving ? "保存中..." : "保存"}
-        </button>
-      </div>
-    </form>
-  );
-}
-
 // ── Chapter Row (with inline editing) ─────────────────────────────────────────
 
 function ChapterRow({
   chapter,
+  courseId,
   onUpdated,
   onDelete,
 }: {
   chapter: Chapter;
+  courseId: number;
   onUpdated: () => void;
   onDelete: () => void;
 }) {
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(chapter.title);
   const [saving, setSaving] = useState(false);
@@ -682,17 +609,28 @@ function ChapterRow({
   }
 
   return (
-    <li className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow">
+    <li
+      role="button"
+      tabIndex={0}
+      className="group flex items-center gap-3 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      onClick={() => navigate(`/admin/courses/${courseId}/chapters/${chapter.id}`)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate(`/admin/courses/${courseId}/chapters/${chapter.id}`);
+        }
+      }}
+    >
       <span className="flex-1 text-sm text-gray-800">{chapter.title}</span>
       <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
         <button
-          onClick={() => { setTitle(chapter.title); setEditing(true); }}
+          onClick={(e) => { e.stopPropagation(); setTitle(chapter.title); setEditing(true); }}
           className="text-xs text-gray-400 hover:text-indigo-600 px-2 py-0.5 rounded"
         >
           编辑
         </button>
         <button
-          onClick={onDelete}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
           className="text-xs text-gray-400 hover:text-red-500 px-2 py-0.5 rounded"
         >
           删除

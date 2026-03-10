@@ -8,6 +8,7 @@ import {
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CourseManagement from "./pages/admin/CourseManagement";
+import ChapterEditor from "./pages/admin/ChapterEditor";
 import TodayStudy from "./pages/user/TodayStudy";
 import LessonDetail from "./pages/user/LessonDetail";
 import { AppSidebar } from "./components/layout/AppSidebar";
@@ -65,7 +66,12 @@ export default function App() {
               <Route path="/study" element={<TodayStudy />} />
               <Route path="/study/:recordId" element={<LessonDetail />} />
               {user.role === "admin" && (
-                <Route path="/admin/courses" element={<CourseManagement />} />
+                <>
+                  <Route path="/admin/courses" element={<CourseManagement />} />
+                  <Route path="/admin/courses/:courseId" element={<CourseManagement />} />
+                  <Route path="/admin/courses/:courseId/chapters/new" element={<ChapterEditor />} />
+                  <Route path="/admin/courses/:courseId/chapters/:chapterId" element={<ChapterEditor />} />
+                </>
               )}
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>

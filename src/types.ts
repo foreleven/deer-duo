@@ -23,6 +23,7 @@ export type Chapter = {
   id: number;
   course_id: number;
   title: string;
+  content: string | null;
   sort_order: number;
   created_at: string;
 };
