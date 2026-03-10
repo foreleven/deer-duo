@@ -19,7 +19,7 @@ export async function getChapter(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.json({ error: "未登录" }, 401);
 
   const chapter = await c.env.DB.prepare(
-    "SELECT id, course_id, title, content, sort_order, created_at FROM chapters WHERE id = ?",
+    "SELECT id, course_id, title, content, knowledge_points, sort_order, created_at FROM chapters WHERE id = ?",
   )
     .bind(c.req.param("id"))
     .first();
@@ -32,23 +32,23 @@ export async function createChapter(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.json({ error: "未登录" }, 401);
   if (user.role !== "admin") return c.json({ error: "权限不足" }, 403);
 
-  let body: { title: string; content?: string; sort_order?: number };
+  let body: { title: string; content?: string; knowledge_points?: string; sort_order?: number };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: "无效的请求体" }, 400);
   }
 
-  const { title, content = null, sort_order = 0 } = body;
+  const { title, content = null, knowledge_points = null, sort_order = 0 } = body;
   if (!title?.trim()) return c.json({ error: "章节名称不能为空" }, 400);
 
   const result = await c.env.DB.prepare(
-    "INSERT INTO chapters (course_id, title, content, sort_order) VALUES (?, ?, ?, ?)",
+    "INSERT INTO chapters (course_id, title, content, knowledge_points, sort_order) VALUES (?, ?, ?, ?, ?)",
   )
-    .bind(c.req.param("courseId"), title.trim(), content, sort_order)
+    .bind(c.req.param("courseId"), title.trim(), content, knowledge_points, sort_order)
     .run();
 
-  return c.json({ chapter: { id: result.meta.last_row_id, title: title.trim(), content, sort_order } }, 201);
+  return c.json({ chapter: { id: result.meta.last_row_id, title: title.trim(), content, knowledge_points, sort_order } }, 201);
 }
 
 export async function updateChapter(c: Context<{ Bindings: Bindings }>) {
@@ -56,7 +56,7 @@ export async function updateChapter(c: Context<{ Bindings: Bindings }>) {
   if (!user) return c.json({ error: "未登录" }, 401);
   if (user.role !== "admin") return c.json({ error: "权限不足" }, 403);
 
-  let body: { title?: string; content?: string | null; sort_order?: number };
+  let body: { title?: string; content?: string | null; knowledge_points?: string | null; sort_order?: number };
   try {
     body = await c.req.json();
   } catch {
@@ -76,6 +76,10 @@ export async function updateChapter(c: Context<{ Bindings: Bindings }>) {
   if ("content" in body) {
     fields.push("content = ?");
     params.push(body.content ?? null);
+  }
+  if ("knowledge_points" in body) {
+    fields.push("knowledge_points = ?");
+    params.push(body.knowledge_points ?? null);
   }
   if (sort_order !== undefined) {
     fields.push("sort_order = ?");
